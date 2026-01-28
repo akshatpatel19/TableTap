@@ -1,0 +1,207 @@
+'use client';
+
+import React from "react"
+
+import { useState, useEffect } from 'react';
+import { Order, updateOrder } from '@/lib/db';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Clock, CheckCircle, AlertCircle, Utensils } from 'lucide-react';
+
+interface StaffOrdersViewProps {
+  orders: Order[];
+  onRefresh: () => Promise<void>;
+}
+
+export const StaffOrdersView: React.FC<StaffOrdersViewProps> = ({ orders, onRefresh }) => {
+  const [localOrders, setLocalOrders] = useState(orders);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    setLocalOrders(orders);
+  }, [orders]);
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'pending':
+        return <Clock className="h-5 w-5 text-yellow-600" />;
+      case 'confirmed':
+      case 'preparing':
+        return <Utensils className="h-5 w-5 text-orange-600" />;
+      case 'ready':
+        return <CheckCircle className="h-5 w-5 text-green-600" />;
+      default:
+        return <AlertCircle className="h-5 w-5 text-gray-600" />;
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'pending':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'confirmed':
+        return 'bg-blue-100 text-blue-800';
+      case 'preparing':
+        return 'bg-orange-100 text-orange-800';
+      case 'ready':
+        return 'bg-green-100 text-green-800';
+      case 'served':
+        return 'bg-gray-100 text-gray-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const handleStatusUpdate = async (orderId: string, newStatus: string) => {
+    setLoading(true);
+    try {
+      await updateOrder(orderId, { status: newStatus as any });
+      setLocalOrders(
+        localOrders.map((order) => (order.id === orderId ? { ...order, status: newStatus as any } : order))
+      );
+      await onRefresh();
+    } catch (error) {
+      console.error('[v0] Error updating order:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const pendingOrders = localOrders.filter((o) => o.status === 'pending');
+  const preparingOrders = localOrders.filter((o) => o.status === 'confirmed' || o.status === 'preparing');
+  const readyOrders = localOrders.filter((o) => o.status === 'ready');
+
+  const renderOrderCard = (order: Order) => (
+    <Card key={order.id} className="p-4 space-y-4 hover:shadow-lg transition-shadow">
+      <div className="flex items-start justify-between">
+        <div>
+          <h3 className="font-bold text-lg text-foreground">Table {order.tableId}</h3>
+          <p className="text-xs text-muted-foreground mt-1">Order ID: {order.id.substring(0, 8)}</p>
+        </div>
+        <Badge className={getStatusColor(order.status)}>
+          <div className="flex items-center gap-2">
+            {getStatusIcon(order.status)}
+            <span className="capitalize">{order.status}</span>
+          </div>
+        </Badge>
+      </div>
+
+      <div className="bg-card/50 rounded p-3 space-y-2">
+        <p className="text-sm font-semibold text-foreground">Items:</p>
+        {order.items.map((item, idx) => (
+          <div key={idx} className="text-sm flex justify-between text-muted-foreground">
+            <span>
+              {item.quantity}x {item.name}
+            </span>
+            <span className="text-foreground font-medium">₹{item.price * item.quantity}</span>
+          </div>
+        ))}
+      </div>
+
+      <div className="text-sm flex justify-between py-2 border-t">
+        <span className="text-muted-foreground">Total Amount:</span>
+        <span className="font-bold text-primary">₹{order.totalAmount.toFixed(2)}</span>
+      </div>
+
+      <div className="text-xs flex justify-between text-muted-foreground py-2 border-t">
+        <span>Payment: </span>
+        <span className={order.paymentStatus === 'paid' ? 'text-green-600' : 'text-yellow-600'}>
+          {order.paymentStatus}
+        </span>
+      </div>
+
+      {order.notes && (
+        <div className="text-sm p-2 bg-yellow-50 border border-yellow-200 rounded text-yellow-900">
+          <p className="font-semibold mb-1">Notes:</p>
+          <p>{order.notes}</p>
+        </div>
+      )}
+
+      <div className="flex gap-2 pt-2">
+        {order.status === 'pending' && (
+          <Button
+            onClick={() => handleStatusUpdate(order.id, 'confirmed')}
+            disabled={loading}
+            size="sm"
+            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
+          >
+            Confirm
+          </Button>
+        )}
+
+        {(order.status === 'confirmed' || order.status === 'preparing') && (
+          <Button
+            onClick={() => handleStatusUpdate(order.id, order.status === 'confirmed' ? 'preparing' : 'ready')}
+            disabled={loading}
+            size="sm"
+            className="flex-1 bg-orange-600 hover:bg-orange-700 text-white"
+          >
+            {order.status === 'confirmed' ? 'Start Preparing' : 'Mark Ready'}
+          </Button>
+        )}
+
+        {order.status === 'ready' && (
+          <Button
+            onClick={() => handleStatusUpdate(order.id, 'served')}
+            disabled={loading}
+            size="sm"
+            className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+          >
+            Mark Served
+          </Button>
+        )}
+      </div>
+    </Card>
+  );
+
+  return (
+    <div className="space-y-6">
+      {/* Pending Orders */}
+      {pendingOrders.length > 0 && (
+        <div>
+          <h2 className="text-xl font-bold text-foreground mb-4 flex items-center gap-2">
+            <Clock className="h-6 w-6 text-yellow-600" />
+            New Orders ({pendingOrders.length})
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {pendingOrders.map(renderOrderCard)}
+          </div>
+        </div>
+      )}
+
+      {/* Preparing Orders */}
+      {preparingOrders.length > 0 && (
+        <div>
+          <h2 className="text-xl font-bold text-foreground mb-4 flex items-center gap-2">
+            <Utensils className="h-6 w-6 text-orange-600" />
+            Being Prepared ({preparingOrders.length})
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {preparingOrders.map(renderOrderCard)}
+          </div>
+        </div>
+      )}
+
+      {/* Ready Orders */}
+      {readyOrders.length > 0 && (
+        <div>
+          <h2 className="text-xl font-bold text-foreground mb-4 flex items-center gap-2">
+            <CheckCircle className="h-6 w-6 text-green-600" />
+            Ready for Pickup ({readyOrders.length})
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {readyOrders.map(renderOrderCard)}
+          </div>
+        </div>
+      )}
+
+      {localOrders.length === 0 && (
+        <Card className="p-8 text-center">
+          <p className="text-muted-foreground text-lg">No orders yet</p>
+          <p className="text-sm text-muted-foreground mt-2">New orders will appear here</p>
+        </Card>
+      )}
+    </div>
+  );
+};
