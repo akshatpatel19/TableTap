@@ -45,7 +45,7 @@ export default function QRCodesPage() {
   }, [cafeSlug, router]);
 
   const generateQRLink = (tableNumber: number) => {
-    return `http://localhost:3000/${cafeSlug}/menu?table=${tableNumber}`;
+    return `https://table-tap-three.vercel.app/${cafeSlug}/menu?table=${tableNumber}`;
   };
 
   const downloadQR = async (tableNumber: number) => {
