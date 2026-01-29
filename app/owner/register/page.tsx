@@ -1,12 +1,11 @@
 'use client';
 
-import React from "react"
-
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { createCafe } from '@/lib/db';
+import { generateUniqueSlug } from '@/lib/slug-generator';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Loader2 } from 'lucide-react';
@@ -62,11 +61,8 @@ export default function RegisterPage() {
       // Create Firebase user
       const userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
 
-      // Generate cafe slug from cafe name
-      const slug = formData.cafeName
-        .toLowerCase()
-        .replace(/\s+/g, '-')
-        .replace(/[^\w-]/g, '');
+      // Generate unique cafe slug from cafe name
+      const slug = generateUniqueSlug(formData.cafeName);
 
       // Create cafe in database
       const cafe = await createCafe({
