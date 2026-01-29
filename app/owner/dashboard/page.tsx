@@ -7,7 +7,7 @@ import { getCafeByEmail, getSubscription, Cafe, Subscription, createSubscription
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, LogOut, QrCode, Menu, Users, Settings } from 'lucide-react';
+import { Loader2, LogOut, QrCode, Menu, Users, Settings, Tag } from 'lucide-react';
 import { SubscriptionPlansComponent, SubscriptionPlan } from '@/components/SubscriptionPlans';
 import Link from 'next/link';
 
@@ -180,7 +180,7 @@ export default function OwnerDashboard() {
         )}
 
         {/* Quick Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
           <Link href={`/${cafe.slug}/menu`} className="block">
             <Card className="p-6 cursor-pointer hover:shadow-lg transition-shadow h-full">
               <QrCode className="h-8 w-8 text-primary mb-3" />
@@ -202,6 +202,14 @@ export default function OwnerDashboard() {
               <Menu className="h-8 w-8 text-primary mb-3" />
               <h3 className="font-semibold text-foreground mb-1">Menu Setup</h3>
               <p className="text-sm text-muted-foreground">Add items</p>
+            </Card>
+          </Link>
+
+          <Link href={`/${cafe.slug}/owner/offers`} className="block">
+            <Card className="p-6 cursor-pointer hover:shadow-lg transition-shadow h-full">
+              <Tag className="h-8 w-8 text-primary mb-3" />
+              <h3 className="font-semibold text-foreground mb-1">Offers</h3>
+              <p className="text-sm text-muted-foreground">Create discounts</p>
             </Card>
           </Link>
 

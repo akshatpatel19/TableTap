@@ -45,6 +45,22 @@ export interface MenuItem {
   updatedAt: number;
 }
 
+export interface Discount {
+  id: string;
+  cafeId: string;
+  type: 'menu' | 'category' | 'item' | 'special'; // menu: whole menu, category: specific category, item: single item, special: buy 1 get 1
+  name: string;
+  description: string; // empty string if no description
+  discountValue: number; // percentage for regular discounts, or specific value for special offers
+  discountType: 'percentage' | 'fixed' | 'bogo'; // percentage, fixed amount, or buy one get one
+  applicableTo: string; // category name or item ID, empty string for whole menu
+  startDate: number;
+  endDate: number;
+  isActive: boolean;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface Order {
   id: string;
   cafeId: string;
@@ -248,4 +264,37 @@ export const removeCategory = async (cafeId: string, categoryName: string) => {
 export const getCafeCategories = async (cafeId: string) => {
   const cafe = await getCafe(cafeId);
   return cafe?.categories || [];
+};
+
+// Discount operations
+export const createDiscount = async (discount: Omit<Discount, 'id'>) => {
+  const discountRef = doc(collection(db, 'discounts'));
+  const discountData: Discount = {
+    ...discount,
+    id: discountRef.id,
+  };
+  await setDoc(discountRef, discountData);
+  return discountData;
+};
+
+export const getDiscount = async (discountId: string) => {
+  const docRef = doc(db, 'discounts', discountId);
+  const docSnap = await getDoc(docRef);
+  return docSnap.exists() ? (docSnap.data() as Discount) : null;
+};
+
+export const getCafeDiscounts = async (cafeId: string) => {
+  const q = query(collection(db, 'discounts'), where('cafeId', '==', cafeId));
+  const querySnapshot = await getDocs(q);
+  return querySnapshot.docs.map((doc) => doc.data() as Discount);
+};
+
+export const updateDiscount = async (discountId: string, updates: Partial<Discount>) => {
+  const docRef = doc(db, 'discounts', discountId);
+  await updateDoc(docRef, { ...updates, updatedAt: Date.now() });
+};
+
+export const deleteDiscount = async (discountId: string) => {
+  const docRef = doc(db, 'discounts', discountId);
+  await deleteDoc(docRef);
 };
