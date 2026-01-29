@@ -1,8 +1,6 @@
 'use client';
 
-import React from "react"
-
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Order, updateOrder } from '@/lib/db';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -68,6 +66,21 @@ export const StaffOrdersView: React.FC<StaffOrdersViewProps> = ({ orders, onRefr
     }
   };
 
+  const handleMarkPaymentReceived = async (orderId: string) => {
+    setLoading(true);
+    try {
+      await updateOrder(orderId, { paymentStatus: 'paid' });
+      setLocalOrders(
+        localOrders.map((order) => (order.id === orderId ? { ...order, paymentStatus: 'paid' } : order))
+      );
+      await onRefresh();
+    } catch (error) {
+      console.error('[v0] Error marking payment received:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const pendingOrders = localOrders.filter((o) => o.status === 'pending');
   const preparingOrders = localOrders.filter((o) => o.status === 'confirmed' || o.status === 'preparing');
   const readyOrders = localOrders.filter((o) => o.status === 'ready');
@@ -104,11 +117,23 @@ export const StaffOrdersView: React.FC<StaffOrdersViewProps> = ({ orders, onRefr
         <span className="font-bold text-primary">₹{order.totalAmount.toFixed(2)}</span>
       </div>
 
-      <div className="text-xs flex justify-between text-muted-foreground py-2 border-t">
-        <span>Payment: </span>
-        <span className={order.paymentStatus === 'paid' ? 'text-green-600' : 'text-yellow-600'}>
-          {order.paymentStatus}
-        </span>
+      <div className="space-y-2 py-2 border-t">
+        <div className="text-xs flex justify-between text-muted-foreground">
+          <span>Payment: </span>
+          <span className={order.paymentStatus === 'paid' ? 'text-green-600 font-semibold' : 'text-yellow-600 font-semibold'}>
+            {order.paymentStatus === 'paid' ? '✓ Received' : '⏳ Pending'}
+          </span>
+        </div>
+        {order.paymentMethod === 'online' && order.paymentStatus === 'pending' && (
+          <Button
+            onClick={() => handleMarkPaymentReceived(order.id)}
+            disabled={loading}
+            size="sm"
+            className="w-full bg-green-600 hover:bg-green-700 text-white"
+          >
+            Mark Payment Received
+          </Button>
+        )}
       </div>
 
       {order.notes && (
