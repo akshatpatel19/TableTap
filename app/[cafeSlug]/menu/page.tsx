@@ -2,17 +2,17 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
-import { getCafeBySlug, getMenuItems, Cafe, MenuItem } from '@/lib/db';
+import { getCafeBySlug, getMenuItems, Cafe, MenuItem, getCafeDiscounts, Discount } from '@/lib/db';
 import { MenuCard } from '@/components/MenuCard';
 import { OrderCart } from '@/components/OrderCart';
 import { Loader2 } from 'lucide-react';
-import { OrderProvider } from '@/components/OrderProvider'; // Import OrderProvider
 
 export default function MenuPage() {
   const params = useParams();
   const searchParams = useSearchParams();
   const [cafe, setCafe] = useState<Cafe | null>(null);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
+  const [discounts, setDiscounts] = useState<Discount[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -34,6 +34,14 @@ export default function MenuPage() {
         setCafe(cafeData);
         const items = await getMenuItems(cafeData.id);
         setMenuItems(items);
+
+        // Load active discounts
+        const allDiscounts = await getCafeDiscounts(cafeData.id);
+        const now = Date.now();
+        const activeDiscounts = allDiscounts.filter(
+          (d) => d.isActive && d.startDate <= now && d.endDate >= now
+        );
+        setDiscounts(activeDiscounts);
 
         if (items.length > 0) {
           const categories = Array.from(new Set(items.map((i) => i.category)));
@@ -128,7 +136,7 @@ export default function MenuPage() {
             {filteredItems.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 {filteredItems.map((item) => (
-                  <MenuCard key={item.id} item={item} />
+                  <MenuCard key={item.id} item={item} discounts={discounts} />
                 ))}
               </div>
             ) : (
