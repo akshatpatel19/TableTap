@@ -81,6 +81,21 @@ export const StaffOrdersView: React.FC<StaffOrdersViewProps> = ({ orders, onRefr
     }
   };
 
+  const handleCancelOrder = async (orderId: string) => {
+    setLoading(true);
+    try {
+      await updateOrder(orderId, { status: 'cancelled' });
+      setLocalOrders(
+        localOrders.map((order) => (order.id === orderId ? { ...order, status: 'cancelled' } : order))
+      );
+      await onRefresh();
+    } catch (error) {
+      console.error('[v0] Error cancelling order:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const pendingOrders = localOrders.filter((o) => o.status === 'pending');
   const preparingOrders = localOrders.filter((o) => o.status === 'confirmed' || o.status === 'preparing');
   const readyOrders = localOrders.filter((o) => o.status === 'ready');
@@ -145,14 +160,25 @@ export const StaffOrdersView: React.FC<StaffOrdersViewProps> = ({ orders, onRefr
 
       <div className="flex gap-2 pt-2">
         {order.status === 'pending' && (
-          <Button
-            onClick={() => handleStatusUpdate(order.id, 'confirmed')}
-            disabled={loading}
-            size="sm"
-            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
-          >
-            Confirm
-          </Button>
+          <>
+            <Button
+              onClick={() => handleStatusUpdate(order.id, 'confirmed')}
+              disabled={loading}
+              size="sm"
+              className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              Confirm
+            </Button>
+            <Button
+              onClick={() => handleCancelOrder(order.id)}
+              disabled={loading}
+              size="sm"
+              variant="destructive"
+              className="flex-1"
+            >
+              Cancel
+            </Button>
+          </>
         )}
 
         {(order.status === 'confirmed' || order.status === 'preparing') && (

@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Loader2, CheckCircle, Clock } from 'lucide-react';
 import Link from 'next/link';
+import { db } from '@/lib/firebase';
+import { doc, onSnapshot } from 'firebase/firestore';
 
 export default function OrderConfirmationPage() {
   const params = useParams();
@@ -55,6 +57,19 @@ export default function OrderConfirmationPage() {
     loadData();
   }, [orderId, cafeSlug]);
 
+  // Real-time updates listener
+  useEffect(() => {
+    if (!orderId) return;
+
+    const unsubscribe = onSnapshot(doc(db, 'orders', orderId), (doc) => {
+      if (doc.exists()) {
+        setOrder(doc.data() as Order);
+      }
+    });
+
+    return () => unsubscribe();
+  }, [orderId]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -77,7 +92,8 @@ export default function OrderConfirmationPage() {
   }
 
   const getPaymentStatusDisplay = () => {
-    if (paymentPending) {
+    // Show payment pending only if it's UPI, payment is still pending, and paymentPending flag is true
+    if (order?.paymentMethod === 'online' && order?.paymentStatus === 'pending' && paymentPending) {
       return (
         <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg mb-6">
           <p className="text-sm text-yellow-800 font-medium">
@@ -97,8 +113,7 @@ export default function OrderConfirmationPage() {
             💳 Pay at Counter
           </p>
           <p className="text-xs text-blue-700 mt-1">
-            Please pay the amount when the staff brings your order. Thank you for ordering!
-          </p>
+            Please pay the amount when the staff brings your order. Thank you for ordering!</p>
         </div>
       );
     }
