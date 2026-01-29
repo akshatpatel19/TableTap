@@ -37,6 +37,10 @@ export const MenuCard: React.FC<MenuCardProps> = ({ item, discounts = [] }) => {
       } else if (applicableDiscount.discountType === 'fixed') {
         finalPrice = Math.max(0, item.price - applicableDiscount.discountValue);
         percentage = Math.round(((item.price - finalPrice) / item.price) * 100);
+      } else if (applicableDiscount.discountType === 'bogo') {
+        // For BOGO: 50% off on this item (buy 1 get 1, so effectively 50% each)
+        percentage = 50;
+        finalPrice = item.price / 2;
       }
     }
 
@@ -89,7 +93,7 @@ export const MenuCard: React.FC<MenuCardProps> = ({ item, discounts = [] }) => {
             {discount && (
               <div className="flex items-center gap-1 mt-1 text-xs text-accent font-semibold">
                 <Tag className="h-3 w-3" />
-                Save {discountPercentage}%
+                {discount.discountType === 'bogo' ? 'Buy 1 Get 1' : `Save ${discountPercentage}%`}
               </div>
             )}
           </div>

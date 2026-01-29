@@ -188,7 +188,7 @@ export default function OffersPage() {
                     <option value="menu">Whole Menu</option>
                     <option value="category">Category</option>
                     <option value="item">Single Item</option>
-                    <option value="special">Special (Buy 1 Get 1)</option>
+                    {/* <option value="special">Special (Buy 1 Get 1)</option> */}
                   </select>
                 </div>
               </div>
