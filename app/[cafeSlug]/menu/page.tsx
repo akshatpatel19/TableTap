@@ -6,6 +6,7 @@ import { getCafeBySlug, getMenuItems, Cafe, MenuItem } from '@/lib/db';
 import { MenuCard } from '@/components/MenuCard';
 import { OrderCart } from '@/components/OrderCart';
 import { Loader2 } from 'lucide-react';
+import { OrderProvider } from '@/components/OrderProvider'; // Import OrderProvider
 
 export default function MenuPage() {
   const params = useParams();
