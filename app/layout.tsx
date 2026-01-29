@@ -1,46 +1,21 @@
-import React from "react"
-import type { Metadata } from 'next'
-import { Geist, Geist_Mono } from 'next/font/google'
-import { Analytics } from '@vercel/analytics/next'
-import './globals.css'
+'use client';
 
-const _geist = Geist({ subsets: ["latin"] });
-const _geistMono = Geist_Mono({ subsets: ["latin"] });
+import React, { Suspense } from 'react';
+import { useParams, useSearchParams } from 'next/navigation';
+import { OrderProvider } from '@/lib/context/OrderContext';
 
-export const metadata: Metadata = {
-  title: 'TableTap - QR Code Menu Ordering for Cafes',
-  description: 'Enable customers to order from their tables using QR codes. Fast, seamless, and fully contactless ordering system for cafes.',
-  generator: 'v0.app',
-  icons: {
-    icon: [
-      {
-        url: '/icon-light-32x32.png',
-        media: '(prefers-color-scheme: light)',
-      },
-      {
-        url: '/icon-dark-32x32.png',
-        media: '(prefers-color-scheme: dark)',
-      },
-      {
-        url: '/icon.svg',
-        type: 'image/svg+xml',
-      },
-    ],
-    apple: '/apple-icon.png',
-  },
-}
+export default function CafeLayout({ children }: { children: React.ReactNode }) {
+  const params = useParams();
+  const searchParams = useSearchParams();
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode
-}>) {
+  const cafeSlug = params.cafeSlug as string;
+  const tableId = parseInt(searchParams.get('table') || '1', 10);
+
   return (
-    <html lang="en">
-      <body className={`font-sans antialiased`}>
+    <OrderProvider cafeId={cafeSlug} tableId={tableId}>
+      <Suspense fallback={null}>
         {children}
-        <Analytics />
-      </body>
-    </html>
-  )
+      </Suspense>
+    </OrderProvider>
+  );
 }
