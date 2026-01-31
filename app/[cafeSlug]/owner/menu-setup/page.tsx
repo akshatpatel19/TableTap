@@ -3,23 +3,25 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { auth } from '@/lib/firebase';
-import { getCafeBySlug, getMenuItems, createMenuItem, MenuItem, addCategory, getCafeCategories } from '@/lib/db';
+import { getCafeBySlug, getMenuItems, createMenuItem, MenuItem, addCategory, getCafeCategories, Cafe } from '@/lib/db';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Loader2, Plus, ChevronLeft } from 'lucide-react';
+import { Loader2, Plus, ChevronLeft, AlertCircle } from 'lucide-react';
 import { MenuManagement } from '@/components/MenuManagement';
+import SetupFeePaymentModal from '@/components/SetupFeePaymentModal';
 import Link from 'next/link';
 
 export default function MenuSetupPage() {
   const params = useParams();
   const router = useRouter();
-  const [cafe, setCafe] = useState(null);
+  const [cafe, setCafe] = useState<Cafe | null>(null);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
   const [showAddCategory, setShowAddCategory] = useState(false);
   const [newCategory, setNewCategory] = useState('');
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     category: '',
@@ -29,6 +31,7 @@ export default function MenuSetupPage() {
   });
 
   const cafeSlug = params.cafeSlug as string;
+  const isSubscriptionActive = cafe?.setupFeeStatus === 'paid';
 
   useEffect(() => {
     const loadData = async () => {
@@ -46,6 +49,12 @@ export default function MenuSetupPage() {
         }
 
         setCafe(cafeData);
+
+        // Check subscription status
+        if (cafeData.setupFeeStatus !== 'paid') {
+          setShowPaymentModal(true);
+        }
+
         const items = await getMenuItems(cafeData.id);
         setMenuItems(items);
         const cats = await getCafeCategories(cafeData.id);
@@ -133,6 +142,19 @@ export default function MenuSetupPage() {
 
   return (
     <div className="min-h-screen bg-background">
+      {/* Subscription Payment Modal */}
+      {cafe && !isSubscriptionActive && (
+        <SetupFeePaymentModal
+          open={showPaymentModal}
+          cafe={cafe}
+          onClose={() => setShowPaymentModal(false)}
+          onPaymentRecorded={() => {
+            // Refresh cafe data
+            window.location.reload();
+          }}
+        />
+      )}
+
       {/* Header */}
       <div className="sticky top-0 z-40 bg-card border-b shadow-sm">
         <div className="max-w-6xl mx-auto px-4 py-4">
@@ -148,6 +170,30 @@ export default function MenuSetupPage() {
       </div>
 
       <div className="max-w-6xl mx-auto px-4 py-8">
+        {/* Subscription Status Warning */}
+        {!isSubscriptionActive && (
+          <Card className="p-6 mb-8 border-l-4 border-l-amber-600 bg-amber-50">
+            <div className="flex items-start gap-4">
+              <AlertCircle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <h3 className="text-lg font-semibold text-amber-900 mb-2">Subscription Required</h3>
+                <p className="text-sm text-amber-800 mb-3">
+                  {cafe?.setupFeeStatus === 'pending'
+                    ? 'Your subscription payment is pending verification. Please complete the setup fee payment to start adding menu items.'
+                    : 'Please complete your subscription to add and manage menu items.'}
+                </p>
+                <Button
+                  onClick={() => setShowPaymentModal(true)}
+                  className="bg-amber-600 hover:bg-amber-700"
+                  size="sm"
+                >
+                  Complete Payment
+                </Button>
+              </div>
+            </div>
+          </Card>
+        )}
+
         {/* Categories Section */}
         <Card className="p-6 mb-6">
           <h3 className="text-lg font-semibold text-foreground mb-4">Categories</h3>

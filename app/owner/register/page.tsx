@@ -9,6 +9,8 @@ import { generateUniqueSlug } from '@/lib/slug-generator';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Loader2 } from 'lucide-react';
+import SetupFeePaymentModal from '@/components/SetupFeePaymentModal';
+import MonthlySubscriptionModal from '@/components/MonthlySubscriptionModal';
 import Link from 'next/link';
 
 export default function RegisterPage() {
@@ -24,6 +26,9 @@ export default function RegisterPage() {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showMonthlyModal, setShowMonthlyModal] = useState(false);
+  const [cafe, setCafe] = useState<any>(null);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -65,7 +70,7 @@ export default function RegisterPage() {
       const slug = generateUniqueSlug(formData.cafeName);
 
       // Create cafe in database
-      const cafe = await createCafe({
+      const newCafe = await createCafe({
         name: formData.cafeName,
         slug,
         email: formData.email,
@@ -79,10 +84,11 @@ export default function RegisterPage() {
       });
 
       // Store cafe ID in localStorage
-      localStorage.setItem('current_cafe_id', cafe.id);
+      localStorage.setItem('current_cafe_id', newCafe.id);
 
-      // Redirect to owner dashboard
-      router.push('/owner/dashboard');
+      // Show setup fee payment modal
+      setCafe(newCafe);
+      setShowPaymentModal(true);
     } catch (err: any) {
       console.error('[v0] Registration error:', err);
       setError(err.message || 'Failed to register. Please try again.');
@@ -91,8 +97,48 @@ export default function RegisterPage() {
     }
   };
 
+  const handlePaymentRecorded = () => {
+    // After setup fee payment is confirmed, show monthly subscription modal
+    setShowPaymentModal(false);
+    // Use setTimeout to ensure state updates are processed
+    setTimeout(() => {
+      setShowMonthlyModal(true);
+    }, 100);
+  };
+
+  const handleMonthlyPaymentRecorded = () => {
+    // After monthly payment, redirect to dashboard
+    setShowMonthlyModal(false);
+    setTimeout(() => {
+      router.push('/owner/dashboard');
+    }, 500);
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/5 to-accent/5 flex items-center justify-center p-4">
+      {cafe && (
+        <>
+          <SetupFeePaymentModal
+            open={showPaymentModal}
+            cafe={cafe}
+            onClose={() => {
+              setShowPaymentModal(false);
+              router.push('/owner/dashboard');
+            }}
+            onPaymentRecorded={handlePaymentRecorded}
+          />
+          <MonthlySubscriptionModal
+            open={showMonthlyModal}
+            cafe={cafe}
+            onClose={() => {
+              setShowMonthlyModal(false);
+              router.push('/owner/dashboard');
+            }}
+            onPaymentRecorded={handleMonthlyPaymentRecorded}
+          />
+        </>
+      )}
+
       <Card className="w-full max-w-md p-8">
         <h1 className="text-3xl font-bold text-foreground mb-2 text-center">Create Your Cafe</h1>
         <p className="text-center text-muted-foreground mb-6">Join TableTap and start accepting QR code orders</p>
@@ -156,19 +202,17 @@ export default function RegisterPage() {
 
           <div>
             <label className="block text-sm font-medium text-foreground mb-1">Number of Tables</label>
-            <select
+            <input
+              type="number"
               name="tables"
               value={formData.tables}
               onChange={handleChange}
+              placeholder="Enter number of tables"
               className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 bg-background text-foreground"
+              required
+              min="1"
               disabled={loading}
-            >
-              {[5, 10, 15, 20, 30, 50].map((num) => (
-                <option key={num} value={num}>
-                  {num} tables
-                </option>
-              ))}
-            </select>
+            />
           </div>
 
           <div>

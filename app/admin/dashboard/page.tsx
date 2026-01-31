@@ -5,9 +5,10 @@ import { getAllCafes, Cafe, Order, Subscription, getCafeOrders, getSubscription 
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, TrendingUp, Users, Store, CreditCard, LogOut } from 'lucide-react';
+import { Loader2, TrendingUp, Users, Store, CreditCard, LogOut, X, Settings } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import PaymentVerificationPanel from '@/components/PaymentVerificationPanel';
 
 interface CafeStats {
   cafe: Cafe;
@@ -21,6 +22,7 @@ export default function AdminDashboard() {
   const [cafes, setCafes] = useState<CafeStats[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'active' | 'inactive'>('all');
+  const [selectedCafeForPayment, setSelectedCafeForPayment] = useState<string | null>(null);
 
   useEffect(() => {
     const loadData = async () => {
@@ -68,6 +70,31 @@ export default function AdminDashboard() {
     router.push('/admin/login');
   };
 
+  const handleVerificationComplete = async () => {
+    // Refresh the data after verification
+    const allCafes = await getAllCafes();
+    const cafeStatsPromises = allCafes.map(async (cafe) => {
+      const [orders, subscription] = await Promise.all([getCafeOrders(cafe.id), getSubscription(cafe.id)]);
+
+      const totalRevenue = orders.reduce((sum, order) => {
+        if (order.paymentStatus === 'paid') {
+          return sum + order.totalAmount;
+        }
+        return sum;
+      }, 0);
+
+      return {
+        cafe,
+        totalOrders: orders.length,
+        totalRevenue,
+        subscription,
+      };
+    });
+
+    const cafeStats = await Promise.all(cafeStatsPromises);
+    setCafes(cafeStats.sort((a, b) => b.cafe.createdAt - a.cafe.createdAt));
+  };
+
   const filteredCafes = cafes.filter((stat) => {
     if (filter === 'active') return stat.cafe.isActive;
     if (filter === 'inactive') return !stat.cafe.isActive;
@@ -88,6 +115,34 @@ export default function AdminDashboard() {
 
   return (
     <div className="min-h-screen bg-background">
+      {/* Payment Verification Modal */}
+      {selectedCafeForPayment && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-start justify-end p-4">
+          <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-background rounded-lg shadow-lg">
+            <div className="sticky top-0 bg-background border-b p-4 flex items-center justify-between">
+              <h2 className="font-semibold text-foreground">Payment Verification</h2>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setSelectedCafeForPayment(null)}
+                className="h-auto p-1"
+              >
+                <X className="h-5 w-5" />
+              </Button>
+            </div>
+            <div className="p-6">
+              <PaymentVerificationPanel
+                cafeId={selectedCafeForPayment}
+                onVerificationComplete={() => {
+                  handleVerificationComplete();
+                  setSelectedCafeForPayment(null);
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="sticky top-0 z-40 bg-card border-b shadow-lg">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
@@ -95,10 +150,18 @@ export default function AdminDashboard() {
             <h1 className="text-2xl font-bold text-foreground">TableTap Admin</h1>
             <p className="text-sm text-muted-foreground">Platform Overview</p>
           </div>
-          <Button onClick={handleLogout} variant="outline" size="sm" className="flex items-center gap-2 bg-transparent">
-            <LogOut className="h-4 w-4" />
-            Logout
-          </Button>
+          <div className="flex items-center gap-2">
+            <Link href="/admin/settings">
+              <Button variant="outline" size="sm" className="flex items-center gap-2 bg-transparent">
+                <Settings className="h-4 w-4" />
+                Settings
+              </Button>
+            </Link>
+            <Button onClick={handleLogout} variant="outline" size="sm" className="flex items-center gap-2 bg-transparent">
+              <LogOut className="h-4 w-4" />
+              Logout
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -203,11 +266,21 @@ export default function AdminDashboard() {
                       </Badge>
                     </td>
                     <td className="p-4">
-                      <Link href={`/${stat.cafe.slug}/menu`}>
-                        <Button size="sm" variant="outline" className="text-xs bg-transparent">
-                          View
+                      <div className="flex gap-2">
+                        <Link href={`/${stat.cafe.slug}/menu`}>
+                          <Button size="sm" variant="outline" className="text-xs bg-transparent">
+                            View
+                          </Button>
+                        </Link>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-xs bg-transparent"
+                          onClick={() => setSelectedCafeForPayment(stat.cafe.id)}
+                        >
+                          Verify Payment
                         </Button>
-                      </Link>
+                      </div>
                     </td>
                   </tr>
                 ))}

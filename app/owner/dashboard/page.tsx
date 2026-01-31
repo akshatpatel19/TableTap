@@ -3,12 +3,15 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { auth } from '@/lib/firebase';
-import { getCafeByEmail, getSubscription, Cafe, Subscription, createSubscription, createMenuItem, getOrders, updateOrder, Order } from '@/lib/db';
+import { getCafeByEmail, getSubscription, Cafe, Subscription, createSubscription, createMenuItem, getOrders, updateOrder, Order, isMonthlyPaymentDue, getPendingPayments, isPaymentReminderDue, isPaymentOverdue, getDaysRemainingUntilDue } from '@/lib/db';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, LogOut, QrCode, Menu, Users, Settings, Tag } from 'lucide-react';
 import { SubscriptionPlansComponent, SubscriptionPlan } from '@/components/SubscriptionPlans';
+import SetupFeePaymentModal from '@/components/SetupFeePaymentModal';
+import MonthlySubscriptionModal from '@/components/MonthlySubscriptionModal';
+import PaymentReminderModal from '@/components/PaymentReminderModal';
 import Link from 'next/link';
 
 export default function OwnerDashboard() {
@@ -21,6 +24,12 @@ export default function OwnerDashboard() {
   const [showPlans, setShowPlans] = useState(false);
   const [processingPayment, setProcessingPayment] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState<string>(new Date().toISOString().slice(0, 7));
+  const [showSetupFeeModal, setShowSetupFeeModal] = useState(false);
+  const [showMonthlyModal, setShowMonthlyModal] = useState(false);
+  const [showPaymentReminder, setShowPaymentReminder] = useState(false);
+  const [isPaymentOverdueStatus, setIsPaymentOverdueStatus] = useState(false);
+  const [daysRemaining, setDaysRemaining] = useState<number | null>(null);
+  const [pendingPayments, setPendingPayments] = useState<any>(null);
 
   useEffect(() => {
     const loadData = async () => {
@@ -46,6 +55,34 @@ export default function OwnerDashboard() {
         const ordersData = await getOrders(cafeData.id);
         setAllOrders(ordersData);
         setOrders(ordersData.slice(0, 10));
+
+        // Check subscription payment status
+        const pending = await getPendingPayments(cafeData.id);
+        setPendingPayments(pending);
+
+        // Show setup fee modal if not paid
+        if (cafeData.setupFeeStatus === 'pending' || cafeData.setupFeeStatus === 'rejected') {
+          setShowSetupFeeModal(true);
+        }
+        // Check monthly payment status - ONLY after setup fee is paid
+        else if (cafeData.setupFeeStatus === 'paid') {
+          // Get days remaining for banner display
+          const days = await getDaysRemainingUntilDue(cafeData.id);
+          setDaysRemaining(days);
+
+          // Check if payment is overdue (mandatory)
+          const isOverdue = await isPaymentOverdue(cafeData.id);
+          if (isOverdue) {
+            setIsPaymentOverdueStatus(true);
+            setShowMonthlyModal(true);
+          } else {
+            // Check if payment reminder should be shown (3 days before due)
+            const isReminder = await isPaymentReminderDue(cafeData.id);
+            if (isReminder) {
+              setShowPaymentReminder(true);
+            }
+          }
+        }
       } catch (error) {
         console.error('[v0] Error loading dashboard:', error);
         router.push('/owner/login');
@@ -134,10 +171,49 @@ export default function OwnerDashboard() {
   }
 
   const isSubscriptionActive = subscription && new Date(subscription.endDate) > new Date();
-  const daysRemaining = subscription ? Math.ceil((subscription.endDate - Date.now()) / (1000 * 60 * 60 * 24)) : 0;
+
+  const handlePaymentRecorded = async () => {
+    // Refresh cafe data
+    if (cafe) {
+      const cafeData = await getCafeByEmail(cafe.email);
+      if (cafeData) {
+        setCafe(cafeData);
+        const pending = await getPendingPayments(cafeData.id);
+        setPendingPayments(pending);
+      }
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background">
+      {/* Payment Modals */}
+      {cafe && (
+        <>
+          <SetupFeePaymentModal
+            open={showSetupFeeModal}
+            cafe={cafe}
+            onClose={() => setShowSetupFeeModal(false)}
+            onPaymentRecorded={handlePaymentRecorded}
+          />
+          <PaymentReminderModal
+            open={showPaymentReminder}
+            cafe={cafe}
+            onClose={() => setShowPaymentReminder(false)}
+            onPayNow={() => {
+              setShowPaymentReminder(false);
+              setShowMonthlyModal(true);
+            }}
+          />
+          <MonthlySubscriptionModal
+            open={showMonthlyModal}
+            cafe={cafe}
+            onClose={() => setShowMonthlyModal(false)}
+            onPaymentRecorded={handlePaymentRecorded}
+            isOverdue={isPaymentOverdueStatus}
+          />
+        </>
+      )}
+
       {/* Header */}
       <div className="sticky top-0 z-40 bg-card border-b shadow-lg">
         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
@@ -153,11 +229,224 @@ export default function OwnerDashboard() {
       </div>
 
       <div className="max-w-6xl mx-auto px-4 py-8">
+        {/* Subscription Payment Status */}
+        {cafe && (
+          <>
+            {cafe.setupFeeStatus === 'pending' && (
+              <Card className="p-6 mb-8 border-l-4 border-l-amber-600 bg-amber-50">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <h3 className="text-lg font-semibold text-amber-900 mb-1">Setup Fee Payment Pending</h3>
+                    <p className="text-sm text-amber-800 mb-3">
+                      Complete your one-time setup fee of ₹4,999 to activate your cafe
+                    </p>
+                  </div>
+                  <Button onClick={() => setShowSetupFeeModal(true)} className="bg-amber-600 hover:bg-amber-700">
+                    Pay Now
+                  </Button>
+                </div>
+              </Card>
+            )}
+
+            {cafe.setupFeeStatus === 'rejected' && (
+              <Card className="p-6 mb-8 border-l-4 border-l-red-600 bg-red-50">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <h3 className="text-lg font-semibold text-red-900 mb-1">Setup Fee Payment Rejected</h3>
+                    <p className="text-sm text-red-800 mb-3">
+                      Your previous payment was rejected. Please try again with the correct amount.
+                    </p>
+                  </div>
+                  <Button onClick={() => setShowSetupFeeModal(true)} className="bg-red-600 hover:bg-red-700">
+                    Retry Payment
+                  </Button>
+                </div>
+              </Card>
+            )}
+
+            {cafe.setupFeeStatus === 'paid' && cafe.nextMonthlyPaymentDueDate && Date.now() >= cafe.nextMonthlyPaymentDueDate && (
+              <Card className="p-6 mb-8 border-l-4 border-l-blue-600 bg-blue-50">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <h3 className="text-lg font-semibold text-blue-900 mb-1">Monthly Subscription Due</h3>
+                    <p className="text-sm text-blue-800 mb-3">
+                      Your monthly subscription of ₹{cafe.monthlySubscriptionAmount} is due. Pay now to maintain uninterrupted service.
+                    </p>
+                  </div>
+                  <Button onClick={() => setShowMonthlyModal(true)} className="bg-blue-600 hover:bg-blue-700">
+                    Pay Now
+                  </Button>
+                </div>
+              </Card>
+            )}
+          </>
+        )}
+
         {/* Welcome Card */}
         <Card className="p-6 mb-8 bg-gradient-to-r from-primary/10 to-accent/10">
           <h2 className="text-xl font-bold text-foreground mb-2">Welcome to TableTap!</h2>
           <p className="text-muted-foreground">Manage your cafe, menu, and orders all in one place.</p>
         </Card>
+
+        {/* Subscription Expiry Banner */}
+        {cafe && cafe.setupFeeStatus === 'paid' && daysRemaining !== null && daysRemaining <= 3 && (
+          <Card className="p-4 mb-8 bg-red-50 border-2 border-red-400 rounded-lg">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-3 h-3 rounded-full bg-red-600 animate-pulse"></div>
+                  <p className="text-lg font-bold text-red-900">
+                    Subscription Expires in {daysRemaining} {daysRemaining === 1 ? 'Day' : 'Days'}
+                  </p>
+                </div>
+                <p className="text-sm text-red-800">
+                  Pay your monthly subscription of ₹{cafe.monthlySubscriptionAmount} now to continue uninterrupted service.
+                </p>
+              </div>
+              <Button
+                onClick={() => {
+                  setShowPaymentReminder(false);
+                  setShowMonthlyModal(true);
+                }}
+                className="bg-red-600 hover:bg-red-700 text-white font-semibold px-6 whitespace-nowrap"
+              >
+                Pay Now
+              </Button>
+            </div>
+          </Card>
+        )}
+
+        {/* Subscription Details Section */}
+        {cafe && (
+          <Card className="p-6 mb-8 border border-primary/20">
+            <h3 className="text-lg font-semibold text-foreground mb-6">Subscription Details</h3>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* Setup Fee Status */}
+              <div className="p-4 bg-muted/50 rounded-lg">
+                <p className="text-sm font-medium text-muted-foreground mb-2">Setup Fee</p>
+                <div className="space-y-2">
+                  <p className="text-2xl font-bold text-foreground">₹4,999</p>
+                  <div className="flex items-center gap-2">
+                    {cafe.setupFeeStatus === 'paid' ? (
+                      <>
+                        <div className="w-2 h-2 rounded-full bg-green-600"></div>
+                        <span className="text-sm font-medium text-green-600">Verified</span>
+                      </>
+                    ) : cafe.setupFeeStatus === 'pending' ? (
+                      <>
+                        <div className="w-2 h-2 rounded-full bg-amber-600 animate-pulse"></div>
+                        <span className="text-sm font-medium text-amber-600">Awaiting Verification</span>
+                      </>
+                    ) : (
+                      <>
+                        <div className="w-2 h-2 rounded-full bg-red-600"></div>
+                        <span className="text-sm font-medium text-red-600">Rejected</span>
+                      </>
+                    )}
+                  </div>
+                  {cafe.setupFeeVerifiedAt && (
+                    <p className="text-xs text-muted-foreground">
+                      Verified on {new Date(cafe.setupFeeVerifiedAt).toLocaleDateString()}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Monthly Subscription Status */}
+              <div className="p-4 bg-muted/50 rounded-lg">
+                <p className="text-sm font-medium text-muted-foreground mb-2">Monthly Subscription</p>
+                <div className="space-y-2">
+                  <p className="text-2xl font-bold text-foreground">₹{cafe.monthlySubscriptionAmount}</p>
+                  {cafe.lastMonthlyPaymentDate ? (
+                    <>
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-green-600"></div>
+                        <span className="text-sm font-medium text-green-600">Active</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Last paid: {new Date(cafe.lastMonthlyPaymentDate).toLocaleDateString()}
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-yellow-600"></div>
+                        <span className="text-sm font-medium text-yellow-600">Pending</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Complete setup fee first
+                      </p>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Next Payment Due */}
+              <div className="p-4 bg-muted/50 rounded-lg">
+                <p className="text-sm font-medium text-muted-foreground mb-2">Next Payment Due</p>
+                <div className="space-y-2">
+                  {cafe.nextMonthlyPaymentDueDate ? (
+                    <>
+                      <p className="text-lg font-bold text-foreground">
+                        {new Date(cafe.nextMonthlyPaymentDueDate).toLocaleDateString()}
+                      </p>
+                      {new Date() >= new Date(cafe.nextMonthlyPaymentDueDate) && cafe.setupFeeStatus === 'paid' ? (
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 rounded-full bg-red-600 animate-pulse"></div>
+                          <span className="text-sm font-medium text-red-600">Due Now</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 rounded-full bg-green-600"></div>
+                          <span className="text-sm font-medium text-green-600">On Track</span>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">Complete setup fee to see due date</p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Payment History */}
+            {cafe.subscriptionPayments && cafe.subscriptionPayments.length > 0 && (
+              <div className="mt-6 pt-6 border-t border-muted">
+                <p className="text-sm font-medium text-muted-foreground mb-4">Payment History</p>
+                <div className="space-y-2 max-h-40 overflow-y-auto">
+                  {cafe.subscriptionPayments
+                    .sort((a, b) => (b.paidDate || b.dueDate) - (a.paidDate || a.dueDate))
+                    .slice(0, 5)
+                    .map((payment) => (
+                      <div key={payment.id} className="flex items-center justify-between p-3 bg-muted/30 rounded">
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-foreground capitalize">
+                            {payment.type} Fee {payment.paymentId}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {new Date(payment.dueDate).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm font-semibold text-foreground">₹{payment.amount}</p>
+                          <span className={`text-xs font-medium ${
+                            payment.status === 'paid' 
+                              ? 'text-green-600' 
+                              : payment.status === 'pending' 
+                              ? 'text-amber-600' 
+                              : 'text-red-600'
+                          }`}>
+                            {payment.status.charAt(0).toUpperCase() + payment.status.slice(1)}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            )}
+          </Card>
+        )}
 
         {/* Subscription Status */}
         {subscription && (
