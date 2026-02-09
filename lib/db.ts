@@ -27,6 +27,7 @@ export interface Cafe {
   isActive: boolean;
   upiId?: string; // UPI ID for payments (e.g., user@upi)
   upiQrCode?: string; // Base64 encoded QR code image
+  gstNumber?: string; // GST number for billing
   categories?: string[]; // Custom categories created by cafe owner
   // Subscription payment tracking
   setupFeeStatus: 'pending' | 'paid' | 'rejected'; // Setup fee payment status

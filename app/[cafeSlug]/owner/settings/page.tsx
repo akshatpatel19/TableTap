@@ -21,6 +21,7 @@ export default function SettingsPage() {
     phone: '',
     address: '',
     tables: 0,
+    gstNumber: '',
   });
   const [savedMessage, setSavedMessage] = useState(false);
   const [copiedUrl, setCopiedUrl] = useState(false);
@@ -48,6 +49,7 @@ export default function SettingsPage() {
           phone: cafeData.phone,
           address: cafeData.address,
           tables: cafeData.tables,
+          gstNumber: cafeData.gstNumber || '',
         });
       } catch (error) {
         console.error('[v0] Error loading cafe:', error);
@@ -180,6 +182,10 @@ export default function SettingsPage() {
                 <p className="text-sm text-muted-foreground mb-1">Number of Tables</p>
                 <p className="font-medium text-foreground">{cafe.tables}</p>
               </div>
+              <div>
+                <p className="text-sm text-muted-foreground mb-1">GST Number</p>
+                <p className="font-medium text-foreground">{cafe.gstNumber || 'Not set'}</p>
+              </div>
             </div>
           ) : (
             <div className="space-y-4">
@@ -222,6 +228,18 @@ export default function SettingsPage() {
                   onChange={(e) => setFormData({ ...formData, tables: parseInt(e.target.value) })}
                   className="w-full px-3 py-2 border border-input rounded-lg bg-background text-foreground"
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">GST Number (Optional)</label>
+                <input
+                  type="text"
+                  value={formData.gstNumber}
+                  onChange={(e) => setFormData({ ...formData, gstNumber: e.target.value })}
+                  placeholder="e.g., 18AABCU9603R1Z0"
+                  className="w-full px-3 py-2 border border-input rounded-lg bg-background text-foreground"
+                />
+                <p className="text-xs text-muted-foreground mt-1">Enter your GST number for billing purposes</p>
               </div>
 
               <div className="flex gap-2 pt-2">

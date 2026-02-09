@@ -7,7 +7,7 @@ import { getCafeByEmail, getSubscription, Cafe, Subscription, createSubscription
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, LogOut, QrCode, Menu, Users, Settings, Tag } from 'lucide-react';
+import { Loader2, LogOut, QrCode, Menu, Users, Settings, Tag, FileText, TrendingUp } from 'lucide-react';
 import { SubscriptionPlansComponent, SubscriptionPlan } from '@/components/SubscriptionPlans';
 import SetupFeePaymentModal from '@/components/SetupFeePaymentModal';
 import MonthlySubscriptionModal from '@/components/MonthlySubscriptionModal';
@@ -515,6 +515,22 @@ export default function OwnerDashboard() {
               <Settings className="h-8 w-8 text-primary mb-3" />
               <h3 className="font-semibold text-foreground mb-1">Settings</h3>
               <p className="text-sm text-muted-foreground">Cafe settings</p>
+            </Card>
+          </Link>
+
+          <Link href="/owner/bills" className="block">
+            <Card className="p-6 cursor-pointer hover:shadow-lg transition-shadow h-full">
+              <FileText className="h-8 w-8 text-primary mb-3" />
+              <h3 className="font-semibold text-foreground mb-1">Bills & Invoices</h3>
+              <p className="text-sm text-muted-foreground">Generate bills & printouts</p>
+            </Card>
+          </Link>
+
+          <Link href="/owner/analytics" className="block">
+            <Card className="p-6 cursor-pointer hover:shadow-lg transition-shadow h-full">
+              <TrendingUp className="h-8 w-8 text-primary mb-3" />
+              <h3 className="font-semibold text-foreground mb-1">Analytics</h3>
+              <p className="text-sm text-muted-foreground">Sales & performance data</p>
             </Card>
           </Link>
         </div>
