@@ -16,7 +16,7 @@ interface BillItem {
   totalAmount: number;
   createdAt: number;
   customerName?: string;
-  tableNumber?: string;
+  tableNumber: string;
 }
 
 interface CombinedBill {
@@ -94,8 +94,7 @@ export default function BillsPage() {
       items: order.items || [],
       totalAmount: order.totalAmount,
       createdAt: order.createdAt,
-      customerName: order.customerName,
-      tableNumber: order.tableId?.toString(),
+      tableNumber: String(order.tableId),
     }));
 
     const totalAmount = billItems.reduce((sum, item) => sum + item.totalAmount, 0);
@@ -173,14 +172,18 @@ export default function BillsPage() {
               </thead>
               <tbody>
                 ${generatedBill.orders.map((order: any) => 
-                  (order.items || []).map((item: any) => `
+                  (order.items || []).map((item: any) => {
+                    const qty = item.quantity || 1;
+                    const amount = (item.price || 0) * qty;
+                    return `
                     <tr>
                       <td>${item.name}</td>
-                      <td style="text-align: center;">1</td>
+                      <td style="text-align: center;">${qty}</td>
                       <td class="amount-cell">₹${(item.price || 0).toFixed(2)}</td>
-                      <td class="amount-cell">₹${(item.price || 0).toFixed(2)}</td>
+                      <td class="amount-cell">₹${amount.toFixed(2)}</td>
                     </tr>
-                  `).join('')
+                  `;
+                  }).join('')
                 ).join('')}
               </tbody>
             </table>
@@ -342,7 +345,7 @@ export default function BillsPage() {
                               {order.items?.length || 0} items • ₹{order.totalAmount.toFixed(2)}
                             </p>
                             <div className="flex gap-4 mt-2 text-xs text-muted-foreground">
-                              <span>Table {order.tableNumber || 'N/A'}</span>
+                              <span>Table {order.tableId || 'N/A'}</span>
                               <span>{new Date(order.createdAt).toLocaleTimeString()}</span>
                               <span>{new Date(order.createdAt).toLocaleDateString()}</span>
                             </div>
@@ -437,14 +440,18 @@ export default function BillsPage() {
                   <tbody>
                     {generatedBill.orders.map((order, orderIdx) => (
                       <React.Fragment key={orderIdx}>
-                        {order.items?.map((item: any, itemIdx: number) => (
-                          <tr key={`${orderIdx}-${itemIdx}`} className="border-b">
-                            <td className="py-2 text-foreground">{item.name}</td>
-                            <td className="py-2 text-center text-foreground">1</td>
-                            <td className="py-2 text-right text-foreground">₹{(item.price || 0).toFixed(2)}</td>
-                            <td className="py-2 text-right text-foreground">₹{(item.price || 0).toFixed(2)}</td>
-                          </tr>
-                        ))}
+                        {order.items?.map((item: any, itemIdx: number) => {
+                          const quantity = item.quantity || 1;
+                          const itemTotal = (item.price || 0) * quantity;
+                          return (
+                            <tr key={`${orderIdx}-${itemIdx}`} className="border-b">
+                              <td className="py-2 text-foreground">{item.name}</td>
+                              <td className="py-2 text-center text-foreground">{quantity}</td>
+                              <td className="py-2 text-right text-foreground">₹{(item.price || 0).toFixed(2)}</td>
+                              <td className="py-2 text-right text-foreground">₹{itemTotal.toFixed(2)}</td>
+                            </tr>
+                          );
+                        })}
                       </React.Fragment>
                     ))}
                   </tbody>

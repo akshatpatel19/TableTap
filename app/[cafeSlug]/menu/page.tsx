@@ -97,6 +97,11 @@ export default function MenuPage() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 py-8">
+        {/* Mobile Cart - Shown at top on mobile */}
+        <div className="lg:hidden mb-8">
+          <OrderCart cafeSlug={cafeSlug} />
+        </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
           {/* Menu Items */}
           <div className="lg:col-span-3">
@@ -146,8 +151,8 @@ export default function MenuPage() {
             )}
           </div>
 
-          {/* Sidebar Cart */}
-          <div className="lg:col-span-1">
+          {/* Desktop Sidebar Cart */}
+          <div className="hidden lg:block lg:col-span-1">
             <div className="sticky top-24">
               <OrderCart cafeSlug={cafeSlug} />
             </div>

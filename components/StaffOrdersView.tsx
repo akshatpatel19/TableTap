@@ -99,6 +99,7 @@ export const StaffOrdersView: React.FC<StaffOrdersViewProps> = ({ orders, onRefr
   const pendingOrders = localOrders.filter((o) => o.status === 'pending');
   const preparingOrders = localOrders.filter((o) => o.status === 'confirmed' || o.status === 'preparing');
   const readyOrders = localOrders.filter((o) => o.status === 'ready');
+  const servedOrders = localOrders.filter((o) => o.status === 'served' && o.paymentStatus === 'pending');
 
   const renderOrderCard = (order: Order) => (
     <Card key={order.id} className="p-4 space-y-4 hover:shadow-lg transition-shadow">
@@ -243,6 +244,19 @@ export const StaffOrdersView: React.FC<StaffOrdersViewProps> = ({ orders, onRefr
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {readyOrders.map(renderOrderCard)}
+          </div>
+        </div>
+      )}
+
+      {/* Served Orders with Pending Payment */}
+      {servedOrders.length > 0 && (
+        <div>
+          <h2 className="text-xl font-bold text-foreground mb-4 flex items-center gap-2">
+            <AlertCircle className="h-6 w-6 text-red-600" />
+            Served - Payment Pending ({servedOrders.length})
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {servedOrders.map(renderOrderCard)}
           </div>
         </div>
       )}

@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { useOrder } from '@/lib/context/OrderContext';
 import { MenuItem, Discount } from '@/lib/db';
-import { Tag } from 'lucide-react';
+import { Tag, Plus, Minus } from 'lucide-react';
 
 interface MenuCardProps {
   item: MenuItem;
@@ -13,8 +13,34 @@ interface MenuCardProps {
 }
 
 export const MenuCard: React.FC<MenuCardProps> = ({ item, discounts = [] }) => {
-  const { addToCart } = useOrder();
+  const { addToCart, cart, updateCartItemQuantity } = useOrder();
   const [isAdding, setIsAdding] = useState(false);
+  
+  // Get quantity of this item in cart
+  const cartItem = cart.find(c => c.menuItemId === item.id);
+  const quantityInCart = cartItem?.quantity || 0;
+
+  const handleAddToCartNew = () => {
+    setIsAdding(true);
+    addToCart({
+      menuItemId: item.id,
+      name: item.name,
+      price: discountedPrice,
+      quantity: 1,
+      description: item.description,
+    });
+    setTimeout(() => setIsAdding(false), 300);
+  };
+
+  const handleIncrement = () => {
+    updateCartItemQuantity(item.id, quantityInCart + 1);
+  };
+
+  const handleDecrement = () => {
+    if (quantityInCart > 0) {
+      updateCartItemQuantity(item.id, quantityInCart - 1);
+    }
+  };
 
   // Calculate discounted price
   const { discountedPrice, discount, discountPercentage } = useMemo(() => {
@@ -51,20 +77,11 @@ export const MenuCard: React.FC<MenuCardProps> = ({ item, discounts = [] }) => {
     };
   }, [item, discounts]);
 
-  const handleAddToCart = () => {
-    setIsAdding(true);
-    addToCart({
-      menuItemId: item.id,
-      name: item.name,
-      price: discountedPrice,
-      quantity: 1,
-      description: item.description,
-    });
-    setTimeout(() => setIsAdding(false), 300);
-  };
+
 
   return (
-    <Card className="overflow-hidden hover:shadow-lg transition-shadow h-full flex flex-col">
+    <Card className="overflow-hidden hover:shadow-lg transition-shadow h-full flex flex-col relative">
+      
       {item.image && (
         <div className="w-full h-40 bg-gradient-to-br from-primary/10 to-accent/10 flex items-center justify-center">
           <img
@@ -97,14 +114,34 @@ export const MenuCard: React.FC<MenuCardProps> = ({ item, discounts = [] }) => {
               </div>
             )}
           </div>
-          <Button
-            onClick={handleAddToCart}
-            disabled={!item.isAvailable || isAdding}
-            size="sm"
-            className="bg-primary hover:bg-primary/90 text-primary-foreground"
-          >
-            {isAdding ? 'Added' : 'Add'}
-          </Button>
+          {quantityInCart > 0 ? (
+            <div className="flex items-center gap-2 bg-foreground text-background rounded-full px-3 py-2">
+              <button
+                onClick={handleDecrement}
+                disabled={!item.isAvailable}
+                className="flex items-center justify-center w-6 h-6 hover:opacity-70 transition-opacity disabled:opacity-50"
+              >
+                <Minus className="h-4 w-4" />
+              </button>
+              <span className="font-semibold w-6 text-center">{quantityInCart}</span>
+              <button
+                onClick={handleIncrement}
+                disabled={!item.isAvailable}
+                className="flex items-center justify-center w-6 h-6 hover:opacity-70 transition-opacity disabled:opacity-50"
+              >
+                <Plus className="h-4 w-4" />
+              </button>
+            </div>
+          ) : (
+            <Button
+              onClick={handleAddToCartNew}
+              disabled={!item.isAvailable || isAdding}
+              size="sm"
+              className="bg-primary hover:bg-primary/90 text-primary-foreground"
+            >
+              {isAdding ? 'Added' : 'Add'}
+            </Button>
+          )}
         </div>
         {!item.isAvailable && (
           <p className="text-xs text-destructive mt-2">Currently unavailable</p>
