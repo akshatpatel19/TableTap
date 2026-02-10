@@ -5,6 +5,7 @@ import { useParams, useSearchParams } from 'next/navigation';
 import { getCafeBySlug, getMenuItems, Cafe, MenuItem, getCafeDiscounts, Discount } from '@/lib/db';
 import { MenuCard } from '@/components/MenuCard';
 import { OrderCart } from '@/components/OrderCart';
+import { FloatingOrderCart } from '@/components/FloatingOrderCart';
 import { Loader2 } from 'lucide-react';
 
 export default function MenuPage() {
@@ -97,9 +98,9 @@ export default function MenuPage() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 py-8">
-        {/* Mobile Cart - Shown at top on mobile */}
-        <div className="lg:hidden mb-8">
-          <OrderCart cafeSlug={cafeSlug} />
+        {/* Mobile Floating Cart */}
+        <div className="lg:hidden">
+          <FloatingOrderCart cafeSlug={cafeSlug} />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">

@@ -45,7 +45,7 @@ export const MenuCard: React.FC<MenuCardProps> = ({ item, discounts = [] }) => {
   // Calculate discounted price
   const { discountedPrice, discount, discountPercentage } = useMemo(() => {
     let finalPrice = item.price;
-    let applicableDiscount: Discount | null = null;
+    let applicableDiscount: Discount | null;
     let percentage = 0;
 
     // Check for applicable discounts
