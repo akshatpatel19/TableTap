@@ -668,6 +668,7 @@ export default function OwnerDashboard() {
               </div>
             </div>
 
+
             {/* Payment History */}
             {cafe.subscriptionPayments && cafe.subscriptionPayments.length > 0 && (
               <div className="mt-6 pt-6 border-t border-muted">
