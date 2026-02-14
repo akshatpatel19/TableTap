@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Cafe, getCafe, verifySetupFeePayment, verifyMonthlyPayment } from '@/lib/db';
+import { Cafe, getCafe, verifySetupFeePayment, verifyMonthlyPayment, verifyTableUpgradePayment } from '@/lib/db';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -78,6 +78,26 @@ export default function PaymentVerificationPanel({ cafeId, onVerificationComplet
     }
   };
 
+  const handleVerifyTableUpgradePayment = async (paymentId: string, approve: boolean) => {
+    setVerifying(`upgrade-${paymentId}`);
+    setError(null);
+
+    try {
+      const adminId = localStorage.getItem('admin_token') || 'admin';
+      await verifyTableUpgradePayment(cafeId, paymentId, adminId, approve);
+      
+      const updatedCafe = await getCafe(cafeId);
+      setCafe(updatedCafe);
+      setShowDialog(false);
+      onVerificationComplete?.();
+    } catch (err) {
+      console.error('[v0] Error verifying table upgrade payment:', err);
+      setError('Failed to verify payment');
+    } finally {
+      setVerifying(null);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center p-8">
@@ -97,6 +117,8 @@ export default function PaymentVerificationPanel({ cafeId, onVerificationComplet
   const setupFeePayment = cafe.subscriptionPayments?.find((p) => p.type === 'setup');
   const monthlyPayments = cafe.subscriptionPayments?.filter((p) => p.type === 'monthly') || [];
   const pendingMonthlyPayments = monthlyPayments.filter((p) => p.status === 'pending');
+  const upgradePayments = cafe.tableUpgradePayments || [];
+  const pendingUpgradePayments = upgradePayments.filter((p) => p.status === 'pending');
 
   return (
     <div className="space-y-6">
@@ -337,6 +359,110 @@ export default function PaymentVerificationPanel({ cafeId, onVerificationComplet
         )}
       </Card>
 
+      {/* Table Upgrade Payments Card */}
+      <Card className="p-6">
+        <div className="flex items-start justify-between mb-6">
+          <div>
+            <h3 className="text-lg font-semibold text-foreground mb-1">Table Upgrade Payments</h3>
+            <p className="text-sm text-muted-foreground">Prorated upgrades to table count</p>
+          </div>
+          <div className="text-right">
+            <p className="text-sm font-semibold text-primary">{pendingUpgradePayments.length} Pending</p>
+          </div>
+        </div>
+
+        {upgradePayments.length > 0 ? (
+          <div className="space-y-3">
+            {upgradePayments.map((payment) => (
+              <div key={payment.id} className="bg-muted/50 p-4 rounded-lg space-y-3 border">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">
+                      {payment.oldTableCount} → {payment.newTableCount} tables ({payment.tablesAdded} added)
+                    </p>
+                    <p className="text-xs text-muted-foreground">₹{payment.amount} • {payment.daysRemaining} days remaining</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {payment.status === 'paid' && (
+                      <>
+                        <CheckCircle className="h-4 w-4 text-green-600" />
+                        <Badge className="bg-green-100 text-green-800">Verified</Badge>
+                      </>
+                    )}
+                    {payment.status === 'pending' && (
+                      <>
+                        <Clock className="h-4 w-4 text-amber-600" />
+                        <Badge className="bg-amber-100 text-amber-800">Pending</Badge>
+                      </>
+                    )}
+                    {payment.status === 'rejected' && (
+                      <>
+                        <XCircle className="h-4 w-4 text-red-600" />
+                        <Badge className="bg-red-100 text-red-800">Rejected</Badge>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {payment.paidDate && (
+                  <p className="text-xs text-muted-foreground">
+                    Paid on: {new Date(payment.paidDate).toLocaleDateString()}
+                  </p>
+                )}
+
+                {payment.status === 'pending' && (
+                  <div className="flex gap-2 mt-3">
+                    <Button
+                      onClick={() => {
+                        setSelectedPayment(payment);
+                        setDialogAction('approve');
+                        setShowDialog(true);
+                      }}
+                      disabled={verifying !== null}
+                      size="sm"
+                      className="flex-1 bg-green-600 hover:bg-green-700 h-auto text-xs py-1"
+                    >
+                      {verifying === `upgrade-${payment.paymentId}` ? (
+                        <>
+                          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                          Approving...
+                        </>
+                      ) : (
+                        'Approve'
+                      )}
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        setSelectedPayment(payment);
+                        setDialogAction('reject');
+                        setShowDialog(true);
+                      }}
+                      disabled={verifying !== null}
+                      size="sm"
+                      variant="outline"
+                      className="flex-1 bg-transparent h-auto text-xs py-1"
+                    >
+                      {verifying === `upgrade-${payment.paymentId}` ? (
+                        <>
+                          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                          Rejecting...
+                        </>
+                      ) : (
+                        'Reject'
+                      )}
+                    </Button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="p-4 bg-muted/50 rounded-lg text-center">
+            <p className="text-sm text-muted-foreground">No table upgrade payments recorded yet</p>
+          </div>
+        )}
+      </Card>
+
       {/* Confirmation Dialog */}
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
         <DialogContent>
@@ -354,14 +480,37 @@ export default function PaymentVerificationPanel({ cafeId, onVerificationComplet
           {selectedPayment && (
             <div className="space-y-4 py-4">
               <div className="bg-muted/50 p-4 rounded-lg space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Type:</span>
-                  <span className="font-semibold capitalize">{selectedPayment.type}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Amount:</span>
-                  <span className="font-semibold">₹{selectedPayment.amount}</span>
-                </div>
+                {selectedPayment.type ? (
+                  <>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Type:</span>
+                      <span className="font-semibold capitalize">{selectedPayment.type}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Amount:</span>
+                      <span className="font-semibold">₹{selectedPayment.amount}</span>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Type:</span>
+                      <span className="font-semibold">Table Upgrade</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Tables:</span>
+                      <span className="font-semibold">{selectedPayment.oldTableCount} → {selectedPayment.newTableCount}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Amount:</span>
+                      <span className="font-semibold">₹{selectedPayment.amount}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Days Remaining:</span>
+                      <span className="font-semibold">{selectedPayment.daysRemaining}</span>
+                    </div>
+                  </>
+                )}
                 {selectedPayment.paidDate && (
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Paid on:</span>
@@ -384,8 +533,11 @@ export default function PaymentVerificationPanel({ cafeId, onVerificationComplet
                   onClick={() => {
                     if (selectedPayment.type === 'setup') {
                       handleVerifySetupFee(dialogAction === 'approve');
-                    } else {
+                    } else if (selectedPayment.type === 'monthly') {
                       handleVerifyMonthlyPayment(selectedPayment.id, dialogAction === 'approve');
+                    } else {
+                      // Table upgrade payment
+                      handleVerifyTableUpgradePayment(selectedPayment.paymentId, dialogAction === 'approve');
                     }
                   }}
                   className={`flex-1 ${dialogAction === 'approve' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}`}

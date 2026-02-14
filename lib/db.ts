@@ -49,6 +49,20 @@ export interface Cafe {
     verifiedAt?: number;
     notes?: string;
   }>;
+  tableUpgradePayments?: Array<{
+    id: string;
+    paymentId: string;
+    oldTableCount: number;
+    newTableCount: number;
+    tablesAdded: number;
+    amount: number;
+    daysRemaining: number;
+    paidDate?: number;
+    status: 'pending' | 'paid' | 'rejected';
+    verifiedBy?: string;
+    verifiedAt?: number;
+    notes?: string;
+  }>;
   createdAt: number;
   updatedAt: number;
 }
@@ -555,6 +569,145 @@ export const getDaysRemainingUntilDue = async (cafeId: string): Promise<number |
   const daysRemaining = Math.ceil((dueDate - now) / msPerDay);
   
   return daysRemaining > 0 ? daysRemaining : null;
+};
+
+// Calculate upgrade cost based on remaining days and tables added
+export const calculateUpgradeCost = (
+  tablesAdded: number,
+  daysRemaining: number,
+  monthlyFeePerTable: number
+): number => {
+  // Cost = (daysRemaining / 30) * monthlyFeePerTable * tablesAdded
+  const proratedCost = (daysRemaining / 30) * monthlyFeePerTable * tablesAdded;
+  return Math.ceil(proratedCost); // Round up to nearest rupee
+};
+
+// Record table upgrade payment
+export const recordTableUpgradePayment = async (
+  cafeId: string,
+  oldTableCount: number,
+  newTableCount: number,
+  daysRemaining: number,
+  monthlyFeePerTable: number
+) => {
+  const cafe = await getCafe(cafeId);
+  if (!cafe) throw new Error('Cafe not found');
+
+  const tablesAdded = newTableCount - oldTableCount;
+  if (tablesAdded <= 0) throw new Error('New table count must be greater than current count');
+
+  const amount = calculateUpgradeCost(tablesAdded, daysRemaining, monthlyFeePerTable);
+  const paymentId = generatePaymentId();
+
+  const upgradePayment = {
+    id: `upgrade-${Date.now()}`,
+    paymentId,
+    oldTableCount,
+    newTableCount,
+    tablesAdded,
+    amount,
+    daysRemaining,
+    status: 'pending' as const,
+    paidDate: Date.now(),
+    notes: 'Awaiting admin verification',
+  };
+
+  const updatedUpgradePayments = [...(cafe.tableUpgradePayments || []), upgradePayment];
+  await updateCafe(cafeId, {
+    tableUpgradePayments: updatedUpgradePayments,
+  });
+
+  return upgradePayment;
+};
+
+// Verify table upgrade payment
+export const verifyTableUpgradePayment = async (
+  cafeId: string,
+  paymentId: string,
+  adminId: string,
+  approved: boolean
+) => {
+  const cafe = await getCafe(cafeId);
+  if (!cafe) throw new Error('Cafe not found');
+
+  const upgradePayment = cafe.tableUpgradePayments?.find((p) => p.paymentId === paymentId);
+  if (!upgradePayment) throw new Error('Payment not found');
+
+  const verificationTime = Date.now();
+
+  const updatedUpgradePayments = (cafe.tableUpgradePayments || []).map((payment) => {
+    if (payment.paymentId === paymentId) {
+      return {
+        ...payment,
+        status: approved ? 'paid' : 'rejected',
+        verifiedBy: adminId,
+        verifiedAt: verificationTime,
+      };
+    }
+    return payment;
+  });
+
+  // If approved, update the cafe's table count
+  if (approved) {
+    await updateCafe(cafeId, {
+      tableUpgradePayments: updatedUpgradePayments,
+      tables: upgradePayment.newTableCount,
+    });
+  } else {
+    await updateCafe(cafeId, {
+      tableUpgradePayments: updatedUpgradePayments,
+    });
+  }
+
+  return approved;
+};
+
+// Get table upgrade payments for a cafe
+export const getTableUpgradePayments = async (cafeId: string) => {
+  const cafe = await getCafe(cafeId);
+  if (!cafe) return [];
+  return cafe.tableUpgradePayments || [];
+};
+
+// Get pending table upgrade payments for a cafe
+export const getPendingTableUpgradePayments = async (cafeId: string) => {
+  const payments = await getTableUpgradePayments(cafeId);
+  return payments.filter((p) => p.status === 'pending');
+};
+
+// Record table downgrade (no payment required)
+export const recordTableDowngrade = async (
+  cafeId: string,
+  oldTableCount: number,
+  newTableCount: number
+) => {
+  const cafe = await getCafe(cafeId);
+  if (!cafe) throw new Error('Cafe not found');
+
+  const tablesRemoved = oldTableCount - newTableCount;
+  if (tablesRemoved <= 0) throw new Error('New table count must be less than current count');
+
+  const downgradePayment = {
+    id: `downgrade-${Date.now()}`,
+    paymentId: generatePaymentId(),
+    oldTableCount,
+    newTableCount,
+    tablesAdded: -tablesRemoved, // Negative to indicate removal
+    amount: 0, // No charge for downgrade
+    daysRemaining: 0,
+    status: 'paid' as const, // Auto-approved, no payment needed
+    paidDate: Date.now(),
+    verifiedAt: Date.now(),
+    notes: 'Table downgrade - no payment required',
+  };
+
+  // Update table count immediately
+  await updateCafe(cafeId, {
+    tables: newTableCount,
+    tableUpgradePayments: [...(cafe.tableUpgradePayments || []), downgradePayment],
+  });
+
+  return downgradePayment;
 };
 
 // Generate unique payment ID

@@ -32,6 +32,13 @@ export default function MenuPage() {
           return;
         }
 
+        // Validate table number - must be between 1 and total tables
+        if (tableId < 1 || tableId > cafeData.tables) {
+          setError(`Invalid table number. This cafe has ${cafeData.tables} table${cafeData.tables !== 1 ? 's' : ''}.`);
+          setCafe(cafeData);
+          return;
+        }
+
         setCafe(cafeData);
         const items = await getMenuItems(cafeData.id);
         setMenuItems(items);

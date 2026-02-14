@@ -3,11 +3,12 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { auth } from '@/lib/firebase';
-import { getCafeBySlug, Cafe, updateCafe } from '@/lib/db';
+import { getCafeBySlug, Cafe, updateCafe, recordTableDowngrade } from '@/lib/db';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Loader2, ChevronLeft, Copy } from 'lucide-react';
 import UPISettings from '@/components/UPISettings';
+import TableUpgradeModal from '@/components/TableUpgradeModal';
 import Link from 'next/link';
 
 export default function SettingsPage() {
@@ -25,6 +26,11 @@ export default function SettingsPage() {
   });
   const [savedMessage, setSavedMessage] = useState(false);
   const [copiedUrl, setCopiedUrl] = useState(false);
+  const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
+  const [newTableCount, setNewTableCount] = useState(0);
+  const [upgradeInputValue, setUpgradeInputValue] = useState('');
+  const [downgradeInputValue, setDowngradeInputValue] = useState('');
+  const [downgradingMessage, setDowngradingMessage] = useState('');
 
   const cafeSlug = params.cafeSlug as string;
 
@@ -113,6 +119,55 @@ export default function SettingsPage() {
     setTimeout(() => setCopiedUrl(false), 2000);
   };
 
+  const handleUpgradeTableClick = () => {
+    if (!upgradeInputValue || parseInt(upgradeInputValue) <= cafe?.tables!) {
+      alert('Please enter a number greater than current table count');
+      return;
+    }
+    setNewTableCount(parseInt(upgradeInputValue));
+    setUpgradeModalOpen(true);
+  };
+
+  const handleDowngradeTableClick = async () => {
+    if (!downgradeInputValue || parseInt(downgradeInputValue) >= cafe?.tables!) {
+      alert('Please enter a number less than current table count');
+      return;
+    }
+    
+    if (!confirm('Are you sure you want to downgrade tables? This will be processed immediately at no cost.')) {
+      return;
+    }
+
+    try {
+      await recordTableDowngrade(cafe!.id, cafe!.tables, parseInt(downgradeInputValue));
+      
+      const updatedCafe = await getCafeBySlug(cafeSlug);
+      if (updatedCafe) {
+        setCafe(updatedCafe);
+        setFormData({ ...formData, tables: updatedCafe.tables });
+        setDowngradeInputValue('');
+        setDowngradingMessage('Tables downgraded successfully!');
+        setTimeout(() => setDowngradingMessage(''), 3000);
+      }
+    } catch (error) {
+      console.error('[v0] Error downgrading tables:', error);
+      alert('Failed to downgrade tables');
+    }
+  };
+
+  const handleUpgradeSuccess = async () => {
+    try {
+      const updatedCafe = await getCafeBySlug(cafeSlug);
+      if (updatedCafe) {
+        setCafe(updatedCafe);
+        setFormData({ ...formData, tables: updatedCafe.tables });
+        setUpgradeInputValue('');
+      }
+    } catch (error) {
+      console.error('[v0] Error refreshing cafe data:', error);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -146,10 +201,16 @@ export default function SettingsPage() {
       </div>
 
       <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
-        {/* Success Message */}
+        {/* Success Messages */}
         {savedMessage && (
           <Card className="p-4 bg-green-50 border border-green-200">
             <p className="text-green-800 text-sm font-medium">Settings saved successfully</p>
+          </Card>
+        )}
+
+        {downgradingMessage && (
+          <Card className="p-4 bg-green-50 border border-green-200">
+            <p className="text-green-800 text-sm font-medium">{downgradingMessage}</p>
           </Card>
         )}
 
@@ -221,13 +282,10 @@ export default function SettingsPage() {
 
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">Number of Tables</label>
-                <input
-                  type="number"
-                  min="1"
-                  value={formData.tables}
-                  onChange={(e) => setFormData({ ...formData, tables: parseInt(e.target.value) })}
-                  className="w-full px-3 py-2 border border-input rounded-lg bg-background text-foreground"
-                />
+                <div className="px-3 py-2 border border-input rounded-lg bg-muted text-foreground">
+                  {formData.tables}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">Use the Manage Tables section below to modify table count</p>
               </div>
 
               <div>
@@ -272,12 +330,107 @@ export default function SettingsPage() {
           </div>
         </Card>
 
+        {/* Manage Tables Section */}
+        <Card className="p-6">
+          <h3 className="text-lg font-semibold text-foreground mb-4">Manage Tables</h3>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Upgrade */}
+            <div className="space-y-4 p-4 border border-blue-200 rounded-lg bg-blue-50">
+              <div>
+                <h4 className="font-semibold text-foreground mb-3">Upgrade Tables</h4>
+                <p className="text-xs text-muted-foreground mb-3">
+                  Increase tables with prorated payment based on remaining subscription days.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">Current Tables</label>
+                <div className="px-3 py-2 border border-input rounded-lg bg-background text-foreground text-sm">
+                  {cafe.tables}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">New Table Count</label>
+                <input
+                  type="number"
+                  min={cafe.tables + 1}
+                  value={upgradeInputValue}
+                  onChange={(e) => setUpgradeInputValue(e.target.value)}
+                  placeholder={`Enter number > ${cafe.tables}`}
+                  className="w-full px-3 py-2 border border-input rounded-lg bg-background text-foreground text-sm"
+                />
+              </div>
+
+              <Button 
+                onClick={handleUpgradeTableClick} 
+                disabled={!upgradeInputValue}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                Proceed to Upgrade
+              </Button>
+            </div>
+
+            {/* Downgrade */}
+            <div className="space-y-4 p-4 border border-green-200 rounded-lg bg-green-50">
+              <div>
+                <h4 className="font-semibold text-foreground mb-3">Downgrade Tables</h4>
+                <p className="text-xs text-muted-foreground mb-3">
+                  Reduce tables at no cost. Changes apply immediately.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">Current Tables</label>
+                <div className="px-3 py-2 border border-input rounded-lg bg-background text-foreground text-sm">
+                  {cafe.tables}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">New Table Count</label>
+                <input
+                  type="number"
+                  max={cafe.tables - 1}
+                  value={downgradeInputValue}
+                  onChange={(e) => setDowngradeInputValue(e.target.value)}
+                  placeholder={`Enter number < ${cafe.tables}`}
+                  className="w-full px-3 py-2 border border-input rounded-lg bg-background text-foreground text-sm"
+                />
+              </div>
+
+              <Button 
+                onClick={handleDowngradeTableClick} 
+                disabled={!downgradeInputValue}
+                className="w-full bg-green-600 hover:bg-green-700 text-white"
+              >
+                Downgrade Tables
+              </Button>
+            </div>
+          </div>
+        </Card>
+
         {/* UPI Payment Settings */}
         <Card className="p-6">
           <h3 className="text-lg font-semibold text-foreground mb-4">Payment Settings</h3>
           <UPISettings cafe={cafe} onUpdate={handleUPIUpdate} />
         </Card>
       </div>
+
+      {/* Table Upgrade Modal */}
+      {cafe && (
+        <TableUpgradeModal
+          open={upgradeModalOpen}
+          cafe={cafe}
+          newTableCount={newTableCount}
+          onClose={() => {
+            setUpgradeModalOpen(false);
+            setUpgradeInputValue('');
+          }}
+          onPaymentRecorded={handleUpgradeSuccess}
+        />
+      )}
     </div>
   );
 }

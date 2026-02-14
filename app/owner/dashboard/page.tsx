@@ -7,7 +7,7 @@ import { getCafeByEmail, getSubscription, Cafe, Subscription, createSubscription
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, LogOut, QrCode, Menu, Users, Settings, Tag, FileText, TrendingUp } from 'lucide-react';
+import { Loader2, LogOut, QrCode, Menu, Users, Settings, Tag, FileText, TrendingUp, X } from 'lucide-react';
 import { SubscriptionPlansComponent, SubscriptionPlan } from '@/components/SubscriptionPlans';
 import SetupFeePaymentModal from '@/components/SetupFeePaymentModal';
 import MonthlySubscriptionModal from '@/components/MonthlySubscriptionModal';
@@ -30,6 +30,7 @@ export default function OwnerDashboard() {
   const [isPaymentOverdueStatus, setIsPaymentOverdueStatus] = useState(false);
   const [daysRemaining, setDaysRemaining] = useState<number | null>(null);
   const [pendingPayments, setPendingPayments] = useState<any>(null);
+  const [showTableUpgrades, setShowTableUpgrades] = useState(true);
 
   useEffect(() => {
     const loadData = async () => {
@@ -316,135 +317,77 @@ export default function OwnerDashboard() {
           </Card>
         )}
 
-        {/* Subscription Details Section */}
-        {cafe && (
-          <Card className="p-6 mb-8 border border-primary/20">
-            <h3 className="text-lg font-semibold text-foreground mb-6">Subscription Details</h3>
-            
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {/* Setup Fee Status */}
-              <div className="p-4 bg-muted/50 rounded-lg">
-                <p className="text-sm font-medium text-muted-foreground mb-2">Setup Fee</p>
-                <div className="space-y-2">
-                  <p className="text-2xl font-bold text-foreground">₹4,999</p>
-                  <div className="flex items-center gap-2">
-                    {cafe.setupFeeStatus === 'paid' ? (
-                      <>
-                        <div className="w-2 h-2 rounded-full bg-green-600"></div>
-                        <span className="text-sm font-medium text-green-600">Verified</span>
-                      </>
-                    ) : cafe.setupFeeStatus === 'pending' ? (
-                      <>
-                        <div className="w-2 h-2 rounded-full bg-amber-600 animate-pulse"></div>
-                        <span className="text-sm font-medium text-amber-600">Awaiting Verification</span>
-                      </>
-                    ) : (
-                      <>
-                        <div className="w-2 h-2 rounded-full bg-red-600"></div>
-                        <span className="text-sm font-medium text-red-600">Rejected</span>
-                      </>
+
+
+        {/* Table Upgrade Status */}
+        {showTableUpgrades && cafe && cafe.tableUpgradePayments && cafe.tableUpgradePayments.length > 0 && (
+          <Card className="p-6 mb-8 border-l-4 border-l-blue-600 bg-blue-50 relative">
+            <div className="absolute top-4 right-4">
+              <button
+                onClick={() => setShowTableUpgrades(false)}
+                className="p-1 hover:bg-blue-100 rounded-lg transition-colors"
+                aria-label="Close table upgrades"
+              >
+                <X className="h-5 w-5 text-blue-900" />
+              </button>
+            </div>
+            <div className="space-y-4 pr-6">
+              <div>
+                <h3 className="text-lg font-semibold text-blue-900 mb-2">Table Upgrades</h3>
+                <p className="text-sm text-blue-800">
+                  Track your table upgrade requests and payments below.
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                {cafe.tableUpgradePayments.map((upgrade) => (
+                  <div key={upgrade.id} className="bg-white rounded-lg p-3 border border-blue-200">
+                    <div className="flex items-start justify-between mb-2">
+                      <div>
+                        <p className="text-sm font-semibold text-foreground">
+                          {upgrade.oldTableCount} → {upgrade.newTableCount} tables
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Amount: ₹{upgrade.amount}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {upgrade.status === 'pending' && (
+                          <>
+                            <div className="w-2 h-2 rounded-full bg-amber-600 animate-pulse"></div>
+                            <span className="text-xs font-medium text-amber-600">Pending</span>
+                          </>
+                        )}
+                        {upgrade.status === 'paid' && (
+                          <>
+                            <div className="w-2 h-2 rounded-full bg-green-600"></div>
+                            <span className="text-xs font-medium text-green-600">Approved</span>
+                          </>
+                        )}
+                        {upgrade.status === 'rejected' && (
+                          <>
+                            <div className="w-2 h-2 rounded-full bg-red-600"></div>
+                            <span className="text-xs font-medium text-red-600">Rejected</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    {upgrade.status === 'pending' && (
+                      <p className="text-xs text-muted-foreground mt-2">
+                        Awaiting admin verification (up to 24 hours)
+                      </p>
+                    )}
+
+                    {upgrade.status === 'paid' && (
+                      <p className="text-xs text-green-700 mt-2">
+                        Your new tables have been added! Check QR Codes for new table codes.
+                      </p>
                     )}
                   </div>
-                  {cafe.setupFeeVerifiedAt && (
-                    <p className="text-xs text-muted-foreground">
-                      Verified on {new Date(cafe.setupFeeVerifiedAt).toLocaleDateString()}
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              {/* Monthly Subscription Status */}
-              <div className="p-4 bg-muted/50 rounded-lg">
-                <p className="text-sm font-medium text-muted-foreground mb-2">Monthly Subscription</p>
-                <div className="space-y-2">
-                  <p className="text-2xl font-bold text-foreground">₹{cafe.monthlySubscriptionAmount}</p>
-                  {cafe.lastMonthlyPaymentDate ? (
-                    <>
-                      <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 rounded-full bg-green-600"></div>
-                        <span className="text-sm font-medium text-green-600">Active</span>
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        Last paid: {new Date(cafe.lastMonthlyPaymentDate).toLocaleDateString()}
-                      </p>
-                    </>
-                  ) : (
-                    <>
-                      <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 rounded-full bg-yellow-600"></div>
-                        <span className="text-sm font-medium text-yellow-600">Pending</span>
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        Complete setup fee first
-                      </p>
-                    </>
-                  )}
-                </div>
-              </div>
-
-              {/* Next Payment Due */}
-              <div className="p-4 bg-muted/50 rounded-lg">
-                <p className="text-sm font-medium text-muted-foreground mb-2">Next Payment Due</p>
-                <div className="space-y-2">
-                  {cafe.nextMonthlyPaymentDueDate ? (
-                    <>
-                      <p className="text-lg font-bold text-foreground">
-                        {new Date(cafe.nextMonthlyPaymentDueDate).toLocaleDateString()}
-                      </p>
-                      {new Date() >= new Date(cafe.nextMonthlyPaymentDueDate) && cafe.setupFeeStatus === 'paid' ? (
-                        <div className="flex items-center gap-2">
-                          <div className="w-2 h-2 rounded-full bg-red-600 animate-pulse"></div>
-                          <span className="text-sm font-medium text-red-600">Due Now</span>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-2">
-                          <div className="w-2 h-2 rounded-full bg-green-600"></div>
-                          <span className="text-sm font-medium text-green-600">On Track</span>
-                        </div>
-                      )}
-                    </>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">Complete setup fee to see due date</p>
-                  )}
-                </div>
+                ))}
               </div>
             </div>
-
-            {/* Payment History */}
-            {cafe.subscriptionPayments && cafe.subscriptionPayments.length > 0 && (
-              <div className="mt-6 pt-6 border-t border-muted">
-                <p className="text-sm font-medium text-muted-foreground mb-4">Payment History</p>
-                <div className="space-y-2 max-h-40 overflow-y-auto">
-                  {cafe.subscriptionPayments
-                    .sort((a, b) => (b.paidDate || b.dueDate) - (a.paidDate || a.dueDate))
-                    .slice(0, 5)
-                    .map((payment) => (
-                      <div key={payment.id} className="flex items-center justify-between p-3 bg-muted/30 rounded">
-                        <div className="flex-1">
-                          <p className="text-sm font-medium text-foreground capitalize">
-                            {payment.type} Fee {payment.paymentId}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {new Date(payment.dueDate).toLocaleDateString()}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-sm font-semibold text-foreground">₹{payment.amount}</p>
-                          <span className={`text-xs font-medium ${
-                            payment.status === 'paid' 
-                              ? 'text-green-600' 
-                              : payment.status === 'pending' 
-                              ? 'text-amber-600' 
-                              : 'text-red-600'
-                          }`}>
-                            {payment.status.charAt(0).toUpperCase() + payment.status.slice(1)}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                </div>
-              </div>
-            )}
           </Card>
         )}
 
@@ -547,7 +490,7 @@ export default function OwnerDashboard() {
                       <p className="font-medium text-foreground">Order #{order.id.slice(0, 8)}</p>
                       <Badge
                         className={
-                          order.status === 'completed'
+                          order.status === 'served'
                             ? 'bg-green-100 text-green-800'
                             : order.status === 'cancelled'
                               ? 'bg-red-100 text-red-800'
@@ -606,7 +549,7 @@ export default function OwnerDashboard() {
                         <p className="font-medium text-foreground">Order #{order.id.slice(0, 8)}</p>
                         <Badge
                           className={
-                            order.status === 'completed'
+                            order.status === 'served'
                               ? 'bg-green-100 text-green-800'
                               : order.status === 'cancelled'
                                 ? 'bg-red-100 text-red-800'
@@ -627,6 +570,140 @@ export default function OwnerDashboard() {
             </div>
             {allOrders.filter((o) => new Date(o.createdAt).toISOString().slice(0, 7) === selectedMonth).length === 0 && (
               <p className="text-center text-sm text-muted-foreground py-4">No orders in this month</p>
+            )}
+          </Card>
+        )}
+
+        {/* Subscription Details Section */}
+        {cafe && (
+          <Card className="p-6 mb-8 border border-primary/20">
+            <h3 className="text-lg font-semibold text-foreground mb-6">Subscription Details</h3>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* Setup Fee Status */}
+              <div className="p-4 bg-muted/50 rounded-lg">
+                <p className="text-sm font-medium text-muted-foreground mb-2">Setup Fee</p>
+                <div className="space-y-2">
+                  <p className="text-2xl font-bold text-foreground">₹4,999</p>
+                  <div className="flex items-center gap-2">
+                    {cafe.setupFeeStatus === 'paid' ? (
+                      <>
+                        <div className="w-2 h-2 rounded-full bg-green-600"></div>
+                        <span className="text-sm font-medium text-green-600">Verified</span>
+                      </>
+                    ) : cafe.setupFeeStatus === 'pending' ? (
+                      <>
+                        <div className="w-2 h-2 rounded-full bg-amber-600 animate-pulse"></div>
+                        <span className="text-sm font-medium text-amber-600">Awaiting Verification</span>
+                      </>
+                    ) : (
+                      <>
+                        <div className="w-2 h-2 rounded-full bg-red-600"></div>
+                        <span className="text-sm font-medium text-red-600">Rejected</span>
+                      </>
+                    )}
+                  </div>
+                  {cafe.setupFeeVerifiedAt && (
+                    <p className="text-xs text-muted-foreground">
+                      Verified on {new Date(cafe.setupFeeVerifiedAt).toLocaleDateString()}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Monthly Subscription Status */}
+              <div className="p-4 bg-muted/50 rounded-lg">
+                <p className="text-sm font-medium text-muted-foreground mb-2">Monthly Subscription</p>
+                <div className="space-y-2">
+                  <p className="text-2xl font-bold text-foreground">₹{cafe.monthlySubscriptionAmount}</p>
+                  {cafe.lastMonthlyPaymentDate ? (
+                    <>
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-green-600"></div>
+                        <span className="text-sm font-medium text-green-600">Active</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Last paid: {new Date(cafe.lastMonthlyPaymentDate).toLocaleDateString()}
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-yellow-600"></div>
+                        <span className="text-sm font-medium text-yellow-600">Pending</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Complete setup fee first
+                      </p>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Next Payment Due */}
+              <div className="p-4 bg-muted/50 rounded-lg">
+                <p className="text-sm font-medium text-muted-foreground mb-2">Next Payment Due</p>
+                <div className="space-y-2">
+                  {cafe.nextMonthlyPaymentDueDate ? (
+                    <>
+                      <p className="text-lg font-bold text-foreground">
+                        {new Date(cafe.nextMonthlyPaymentDueDate).toLocaleDateString()}
+                      </p>
+                      {new Date() >= new Date(cafe.nextMonthlyPaymentDueDate) && cafe.setupFeeStatus === 'paid' ? (
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 rounded-full bg-red-600 animate-pulse"></div>
+                          <span className="text-sm font-medium text-red-600">Due Now</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 rounded-full bg-green-600"></div>
+                          <span className="text-sm font-medium text-green-600">On Track</span>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">Complete setup fee to see due date</p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Payment History */}
+            {cafe.subscriptionPayments && cafe.subscriptionPayments.length > 0 && (
+              <div className="mt-6 pt-6 border-t border-muted">
+                <p className="text-sm font-medium text-muted-foreground mb-4">Payment History</p>
+                <div className="space-y-2 max-h-40 overflow-y-auto">
+                  {[
+                    ...cafe.subscriptionPayments,
+                    ...(cafe.tableUpgradePayments || [])
+                  ]
+                    .sort((a, b) => (b.paidDate || b.dueDate || 0) - (a.paidDate || a.dueDate || 0))
+                    .slice(0, 5)
+                    .map((payment) => (
+                      <div key={payment.id} className="flex items-center justify-between p-3 bg-muted/30 rounded">
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-foreground capitalize">
+                            {payment.type ? `${payment.type} Fee` : `Table Upgrade ${payment.oldTableCount}→${payment.newTableCount}`}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {new Date(payment.paidDate || payment.dueDate || 0).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm font-semibold text-foreground">₹{payment.amount}</p>
+                          <span className={`text-xs font-medium ${payment.status === 'paid'
+                              ? 'text-green-600'
+                              : payment.status === 'pending'
+                                ? 'text-amber-600'
+                                : 'text-red-600'
+                            }`}>
+                            {payment.status.charAt(0).toUpperCase() + payment.status.slice(1)}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              </div>
             )}
           </Card>
         )}
