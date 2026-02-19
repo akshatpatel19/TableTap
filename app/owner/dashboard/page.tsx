@@ -33,14 +33,16 @@ export default function OwnerDashboard() {
   const [showTableUpgrades, setShowTableUpgrades] = useState(true);
 
   useEffect(() => {
-    const loadData = async () => {
-      try {
-        const currentUser = auth.currentUser;
-        if (!currentUser) {
-          router.push('/owner/login');
-          return;
-        }
+    // Use onAuthStateChanged so we wait for Firebase to restore the auth
+    // session asynchronously on page refresh (auth.currentUser is null
+    // synchronously until Firebase finishes restoring the persisted token).
+    const unsubscribe = auth.onAuthStateChanged(async (currentUser) => {
+      if (!currentUser) {
+        router.push('/owner/login');
+        return;
+      }
 
+      try {
         const cafeData = await getCafeByEmail(currentUser.email || '');
         if (!cafeData) {
           router.push('/owner/login');
@@ -90,9 +92,9 @@ export default function OwnerDashboard() {
       } finally {
         setLoading(false);
       }
-    };
+    });
 
-    loadData();
+    return () => unsubscribe();
   }, []);
 
   const handleSelectPlan = async (plan: SubscriptionPlan, duration: 'monthly' | 'quarterly' | 'yearly') => {
@@ -677,9 +679,9 @@ export default function OwnerDashboard() {
                     ...cafe.subscriptionPayments,
                     ...(cafe.tableUpgradePayments || [])
                   ]
-                    .sort((a, b) => (b.paidDate || b.dueDate || 0) - (a.paidDate || a.dueDate || 0))
+                    .sort((a: any, b: any) => (b.paidDate || b.dueDate || 0) - (a.paidDate || a.dueDate || 0))
                     .slice(0, 5)
-                    .map((payment) => (
+                    .map((payment: any) => (
                       <div key={payment.id} className="flex items-center justify-between p-3 bg-muted/30 rounded">
                         <div className="flex-1">
                           <p className="text-sm font-medium text-foreground capitalize">
@@ -692,10 +694,10 @@ export default function OwnerDashboard() {
                         <div className="text-right">
                           <p className="text-sm font-semibold text-foreground">₹{payment.amount}</p>
                           <span className={`text-xs font-medium ${payment.status === 'paid'
-                              ? 'text-green-600'
-                              : payment.status === 'pending'
-                                ? 'text-amber-600'
-                                : 'text-red-600'
+                            ? 'text-green-600'
+                            : payment.status === 'pending'
+                              ? 'text-amber-600'
+                              : 'text-red-600'
                             }`}>
                             {payment.status.charAt(0).toUpperCase() + payment.status.slice(1)}
                           </span>

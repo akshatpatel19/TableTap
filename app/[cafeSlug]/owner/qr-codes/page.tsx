@@ -20,14 +20,13 @@ export default function QRCodesPage() {
   const cafeSlug = params.cafeSlug as string;
 
   useEffect(() => {
-    const loadData = async () => {
-      try {
-        const currentUser = auth.currentUser;
-        if (!currentUser) {
-          router.push('/owner/login');
-          return;
-        }
+    const unsubscribe = auth.onAuthStateChanged(async (currentUser) => {
+      if (!currentUser) {
+        router.push('/owner/login');
+        return;
+      }
 
+      try {
         const cafeData = await getCafeBySlug(cafeSlug);
         if (!cafeData) {
           router.push('/owner/login');
@@ -40,9 +39,9 @@ export default function QRCodesPage() {
       } finally {
         setLoading(false);
       }
-    };
+    });
 
-    loadData();
+    return () => unsubscribe();
   }, [cafeSlug, router]);
 
   const generateQRLink = (tableNumber: number) => {
@@ -51,7 +50,7 @@ export default function QRCodesPage() {
 
   const downloadQR = async (tableNumber: number) => {
     const link = generateQRLink(tableNumber);
-    
+
     try {
       const canvas = document.getElementById(`qr-${tableNumber}`) as HTMLCanvasElement;
       if (canvas) {

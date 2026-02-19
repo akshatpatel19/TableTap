@@ -36,14 +36,13 @@ export default function BillsPage() {
   const [generatedBill, setGeneratedBill] = useState<CombinedBill | null>(null);
 
   useEffect(() => {
-    const loadData = async () => {
-      try {
-        const currentUser = auth.currentUser;
-        if (!currentUser) {
-          router.push('/owner/login');
-          return;
-        }
+    const unsubscribe = auth.onAuthStateChanged(async (currentUser) => {
+      if (!currentUser) {
+        router.push('/owner/login');
+        return;
+      }
 
+      try {
         const cafeData = await getCafeByEmail(currentUser.email || '');
         if (!cafeData) {
           router.push('/owner/login');
@@ -61,9 +60,9 @@ export default function BillsPage() {
       } finally {
         setLoading(false);
       }
-    };
+    });
 
-    loadData();
+    return () => unsubscribe();
   }, []);
 
   const handleSelectOrder = (orderId: string) => {
@@ -113,7 +112,7 @@ export default function BillsPage() {
 
   const handlePrint = () => {
     if (!generatedBill) return;
-    
+
     const printWindow = window.open('', '', 'height=600,width=800');
     if (printWindow) {
       // Construct detailed bill HTML
@@ -171,11 +170,11 @@ export default function BillsPage() {
                 </tr>
               </thead>
               <tbody>
-                ${generatedBill.orders.map((order: any) => 
-                  (order.items || []).map((item: any) => {
-                    const qty = item.quantity || 1;
-                    const amount = (item.price || 0) * qty;
-                    return `
+                ${generatedBill.orders.map((order: any) =>
+        (order.items || []).map((item: any) => {
+          const qty = item.quantity || 1;
+          const amount = (item.price || 0) * qty;
+          return `
                     <tr>
                       <td>${item.name}</td>
                       <td style="text-align: center;">${qty}</td>
@@ -183,8 +182,8 @@ export default function BillsPage() {
                       <td class="amount-cell">₹${amount.toFixed(2)}</td>
                     </tr>
                   `;
-                  }).join('')
-                ).join('')}
+        }).join('')
+      ).join('')}
               </tbody>
             </table>
             
@@ -201,10 +200,10 @@ export default function BillsPage() {
           </body>
         </html>
       `;
-      
+
       printWindow.document.write(billHTML);
       printWindow.document.close();
-      
+
       // Wait for content to load, then print
       setTimeout(() => {
         printWindow.print();
@@ -309,7 +308,7 @@ export default function BillsPage() {
             <div className="lg:col-span-2">
               <Card className="p-6">
                 <h2 className="text-lg font-semibold text-foreground mb-4">Select Orders</h2>
-                
+
                 {orders.length === 0 ? (
                   <p className="text-muted-foreground text-center py-8">No orders available</p>
                 ) : (
@@ -336,7 +335,7 @@ export default function BillsPage() {
                           <input
                             type="checkbox"
                             checked={selectedOrders.has(order.id)}
-                            onChange={() => {}}
+                            onChange={() => { }}
                             className="w-4 h-4"
                           />
                           <div className="flex-1">

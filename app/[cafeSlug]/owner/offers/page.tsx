@@ -2,28 +2,29 @@
 
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { getCafeBySlug, getCafeDiscounts, createDiscount, deleteDiscount, updateDiscount, Discount, getMenuItems, getCafeCategories } from '@/lib/db';
+import { getCafeBySlug, getCafeDiscounts, createDiscount, deleteDiscount, updateDiscount, Discount, getMenuItems, getCafeCategories, MenuItem } from '@/lib/db';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Plus, Trash2, Edit2 } from 'lucide-react';
+import { Loader2, Plus, Trash2, Edit2, ChevronLeft } from 'lucide-react';
+import Link from 'next/link';
 
 export default function OffersPage() {
   const params = useParams();
   const cafeSlug = params.cafeSlug as string;
 
   const [discounts, setDiscounts] = useState<Discount[]>([]);
-  const [menuItems, setMenuItems] = useState([]);
+  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
-    type: 'menu' as const,
+    type: 'menu' as 'menu' | 'category' | 'item' | 'special',
     name: '',
     description: '',
     discountValue: '',
-    discountType: 'percentage' as const,
+    discountType: 'percentage' as 'percentage' | 'fixed' | 'bogo',
     applicableTo: '',
     startDate: new Date().toISOString().split('T')[0],
     endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
@@ -151,7 +152,13 @@ export default function OffersPage() {
     <div className="min-h-screen bg-background">
       <div className="sticky top-0 z-40 bg-card border-b shadow-sm">
         <div className="max-w-6xl mx-auto px-4 py-4">
-          <h1 className="text-3xl font-bold text-foreground">Offers & Discounts</h1>
+          <Link href="/owner/dashboard">
+            <Button variant="ghost" size="sm" className="flex items-center gap-2 mb-4">
+              <ChevronLeft className="h-4 w-4" />
+              Back to Dashboard
+            </Button>
+          </Link>
+          <h1 className="text-2xl font-bold text-foreground">Offers & Discounts</h1>
           <p className="text-sm text-muted-foreground mt-1">Create and manage discounts</p>
         </div>
       </div>

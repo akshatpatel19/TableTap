@@ -109,6 +109,8 @@ export interface Order {
   id: string;
   cafeId: string;
   tableId: number;
+  customerEmail: string;
+  customerPhone: string;
   items: Array<{
     menuItemId: string;
     name: string;
@@ -455,7 +457,7 @@ export const verifyMonthlyPayment = async (cafeId: string, paymentId: string, ad
 
   // Payment dates are set at account creation and rolled forward each payment cycle
   // When payment is approved, advance the next payment date by 30 days
-  const nextMonthlyDue = approved 
+  const nextMonthlyDue = approved
     ? (cafe.nextMonthlyPaymentDueDate || Date.now()) + 30 * 24 * 60 * 60 * 1000
     : cafe.nextMonthlyPaymentDueDate;
 
@@ -483,10 +485,10 @@ export const isMonthlyPaymentDue = async (cafeId: string) => {
   const cafe = await getCafe(cafeId);
   if (!cafe) return false;
   if (cafe.setupFeeStatus !== 'paid') return false;
-  
+
   const now = Date.now();
   const dueDate = cafe.nextMonthlyPaymentDueDate || Date.now();
-  
+
   return now >= dueDate;
 };
 
@@ -495,11 +497,11 @@ export const isPaymentReminderDue = async (cafeId: string) => {
   const cafe = await getCafe(cafeId);
   if (!cafe) return false;
   if (cafe.setupFeeStatus !== 'paid') return false;
-  
+
   const now = Date.now();
   const dueDate = cafe.nextMonthlyPaymentDueDate || Date.now();
   const threeDaysBeforeDue = dueDate - (3 * 24 * 60 * 60 * 1000); // 3 days in milliseconds
-  
+
   // Show reminder if payment is within 3 days AND not yet overdue
   return now >= threeDaysBeforeDue && now < dueDate;
 };
@@ -509,10 +511,10 @@ export const isPaymentOverdue = async (cafeId: string) => {
   const cafe = await getCafe(cafeId);
   if (!cafe) return false;
   if (cafe.setupFeeStatus !== 'paid') return false;
-  
+
   const now = Date.now();
   const dueDate = cafe.nextMonthlyPaymentDueDate || Date.now();
-  
+
   return now >= dueDate;
 };
 
@@ -561,13 +563,13 @@ export const getDaysRemainingUntilDue = async (cafeId: string): Promise<number |
   const cafe = await getCafe(cafeId);
   if (!cafe) return null;
   if (cafe.setupFeeStatus !== 'paid') return null;
-  
+
   const now = Date.now();
   const dueDate = cafe.nextMonthlyPaymentDueDate || Date.now();
-  
+
   const msPerDay = 24 * 60 * 60 * 1000;
   const daysRemaining = Math.ceil((dueDate - now) / msPerDay);
-  
+
   return daysRemaining > 0 ? daysRemaining : null;
 };
 

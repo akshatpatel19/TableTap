@@ -34,14 +34,13 @@ export default function MenuSetupPage() {
   const isSubscriptionActive = cafe?.setupFeeStatus === 'paid';
 
   useEffect(() => {
-    const loadData = async () => {
-      try {
-        const currentUser = auth.currentUser;
-        if (!currentUser) {
-          router.push('/owner/login');
-          return;
-        }
+    const unsubscribe = auth.onAuthStateChanged(async (currentUser) => {
+      if (!currentUser) {
+        router.push('/owner/login');
+        return;
+      }
 
+      try {
         const cafeData = await getCafeBySlug(cafeSlug);
         if (!cafeData) {
           router.push('/owner/login');
@@ -67,9 +66,9 @@ export default function MenuSetupPage() {
       } finally {
         setLoading(false);
       }
-    };
+    });
 
-    loadData();
+    return () => unsubscribe();
   }, [cafeSlug]);
 
   const handleAddCategory = async () => {

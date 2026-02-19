@@ -87,6 +87,8 @@ export default function CheckoutPage() {
       const orderData = {
         cafeId: cafe.id,
         tableId: tableId || 1,
+        customerEmail: email,
+        customerPhone: phone,
         items: cart.map((item) => ({
           menuItemId: item.menuItemId,
           name: item.name,
@@ -95,12 +97,30 @@ export default function CheckoutPage() {
         })),
         totalAmount,
         status: 'pending' as const,
-        paymentStatus: paymentMethod === 'online' ? 'pending' : 'paid' as const,
+        paymentStatus: (paymentMethod === 'online' ? 'pending' : 'paid') as 'pending' | 'paid' | 'failed',
         paymentMethod,
         notes,
       };
 
       const order = await createOrder(orderData);
+
+      // Trigger order confirmation email (don't let email failure block the user)
+      try {
+        fetch('/api/send-order-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            orderId: order.id,
+            customerEmail: email,
+            cafeName: cafe.name,
+            cafeSlug,
+            items: orderData.items,
+            totalAmount,
+          }),
+        }).catch((err) => console.error('[Checkout] Failed to trigger email:', err));
+      } catch (e) {
+        console.error('[Checkout] Email trigger error:', e);
+      }
 
       if (paymentMethod === 'online') {
         // UPI Payment - redirect to payment confirmation page

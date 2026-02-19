@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { createUserWithEmailAndPassword, sendEmailVerification } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { createCafe } from '@/lib/db';
 import { generateUniqueSlug } from '@/lib/slug-generator';
@@ -66,6 +66,9 @@ export default function RegisterPage() {
       // Create Firebase user
       const userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
 
+      // Send email verification before anything else
+      await sendEmailVerification(userCredential.user);
+
       // Generate unique cafe slug from cafe name
       const slug = generateUniqueSlug(formData.cafeName);
 
@@ -86,9 +89,8 @@ export default function RegisterPage() {
       // Store cafe ID in localStorage
       localStorage.setItem('current_cafe_id', newCafe.id);
 
-      // Show setup fee payment modal
-      setCafe(newCafe);
-      setShowPaymentModal(true);
+      // Redirect to email verification page — user must verify before entering the app
+      router.push('/owner/verify-email');
     } catch (err: any) {
       console.error('[v0] Registration error:', err);
       setError(err.message || 'Failed to register. Please try again.');

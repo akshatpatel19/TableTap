@@ -36,14 +36,13 @@ export default function AnalyticsPage() {
   const [showComparison, setShowComparison] = useState(false);
 
   useEffect(() => {
-    const loadData = async () => {
-      try {
-        const currentUser = auth.currentUser;
-        if (!currentUser) {
-          router.push('/owner/login');
-          return;
-        }
+    const unsubscribe = auth.onAuthStateChanged(async (currentUser) => {
+      if (!currentUser) {
+        router.push('/owner/login');
+        return;
+      }
 
+      try {
         const cafeData = await getCafeByEmail(currentUser.email || '');
         if (!cafeData) {
           router.push('/owner/login');
@@ -60,9 +59,9 @@ export default function AnalyticsPage() {
       } finally {
         setLoading(false);
       }
-    };
+    });
 
-    loadData();
+    return () => unsubscribe();
   }, []);
 
   const getDateFilter = () => {

@@ -35,14 +35,13 @@ export default function SettingsPage() {
   const cafeSlug = params.cafeSlug as string;
 
   useEffect(() => {
-    const loadData = async () => {
-      try {
-        const currentUser = auth.currentUser;
-        if (!currentUser) {
-          router.push('/owner/login');
-          return;
-        }
+    const unsubscribe = auth.onAuthStateChanged(async (currentUser) => {
+      if (!currentUser) {
+        router.push('/owner/login');
+        return;
+      }
 
+      try {
         const cafeData = await getCafeBySlug(cafeSlug);
         if (!cafeData) {
           router.push('/owner/login');
@@ -62,9 +61,9 @@ export default function SettingsPage() {
       } finally {
         setLoading(false);
       }
-    };
+    });
 
-    loadData();
+    return () => unsubscribe();
   }, [cafeSlug]);
 
   const handleSaveChanges = async () => {
@@ -133,14 +132,14 @@ export default function SettingsPage() {
       alert('Please enter a number less than current table count');
       return;
     }
-    
+
     if (!confirm('Are you sure you want to downgrade tables? This will be processed immediately at no cost.')) {
       return;
     }
 
     try {
       await recordTableDowngrade(cafe!.id, cafe!.tables, parseInt(downgradeInputValue));
-      
+
       const updatedCafe = await getCafeBySlug(cafeSlug);
       if (updatedCafe) {
         setCafe(updatedCafe);
@@ -333,7 +332,7 @@ export default function SettingsPage() {
         {/* Manage Tables Section */}
         <Card className="p-6">
           <h3 className="text-lg font-semibold text-foreground mb-4">Manage Tables</h3>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Upgrade */}
             <div className="space-y-4 p-4 border border-blue-200 rounded-lg bg-blue-50">
@@ -363,8 +362,8 @@ export default function SettingsPage() {
                 />
               </div>
 
-              <Button 
-                onClick={handleUpgradeTableClick} 
+              <Button
+                onClick={handleUpgradeTableClick}
                 disabled={!upgradeInputValue}
                 className="w-full bg-blue-600 hover:bg-blue-700 text-white"
               >
@@ -400,8 +399,8 @@ export default function SettingsPage() {
                 />
               </div>
 
-              <Button 
-                onClick={handleDowngradeTableClick} 
+              <Button
+                onClick={handleDowngradeTableClick}
                 disabled={!downgradeInputValue}
                 className="w-full bg-green-600 hover:bg-green-700 text-white"
               >

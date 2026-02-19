@@ -26,7 +26,16 @@ export default function LoginPage() {
 
     try {
       // Sign in with Firebase
-      await signInWithEmailAndPassword(auth, email, password);
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+
+      // Block unverified users
+      if (!userCredential.user.emailVerified) {
+        setError('Please verify your email. Redirecting to verification page...');
+        setLoading(false);
+        // Give user a moment to read the message, then redirect to verify-email page
+        setTimeout(() => router.push('/owner/verify-email'), 1500);
+        return;
+      }
 
       // Get cafe information
       const cafe = await getCafeByEmail(email);
@@ -38,7 +47,7 @@ export default function LoginPage() {
       router.push('/owner/dashboard');
     } catch (err: any) {
       console.error('[v0] Login error:', err);
-      if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
+      if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
         setError('Invalid email or password');
       } else {
         setError(err.message || 'Failed to login. Please try again.');
