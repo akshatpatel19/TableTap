@@ -13,14 +13,14 @@ export default function Home() {
           <div className="flex items-center gap-4">
             <Link href="/owner/login">
               <Button variant="outline" size="sm">
-                Cafe Owner
+                Cafe Owner Login
               </Button>
             </Link>
-            <Link href="/admin/login">
+            {/* <Link href="/admin/login">
               <Button size="sm" className="bg-primary hover:bg-primary/90 text-primary-foreground">
                 Admin
               </Button>
-            </Link>
+            </Link> */}
           </div>
         </div>
       </nav>
