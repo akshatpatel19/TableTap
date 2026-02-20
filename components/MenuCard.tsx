@@ -15,7 +15,7 @@ interface MenuCardProps {
 export const MenuCard: React.FC<MenuCardProps> = ({ item, discounts = [] }) => {
   const { addToCart, cart, updateCartItemQuantity } = useOrder();
   const [isAdding, setIsAdding] = useState(false);
-  
+
   // Get quantity of this item in cart
   const cartItem = cart.find(c => c.menuItemId === item.id);
   const quantityInCart = cartItem?.quantity || 0;
@@ -54,7 +54,7 @@ export const MenuCard: React.FC<MenuCardProps> = ({ item, discounts = [] }) => {
     const menuDiscount = discounts.find((d) => d.type === 'menu');
 
     // Priority: item discount > category discount > menu discount
-    applicableDiscount = itemDiscount || categoryDiscount || menuDiscount;
+    applicableDiscount = itemDiscount || categoryDiscount || menuDiscount || null;
 
     if (applicableDiscount) {
       if (applicableDiscount.discountType === 'percentage') {
@@ -81,7 +81,7 @@ export const MenuCard: React.FC<MenuCardProps> = ({ item, discounts = [] }) => {
 
   return (
     <Card className="overflow-hidden hover:shadow-lg transition-shadow h-full flex flex-col relative">
-      
+
       {item.image && (
         <div className="w-full h-40 bg-gradient-to-br from-primary/10 to-accent/10 flex items-center justify-center">
           <img

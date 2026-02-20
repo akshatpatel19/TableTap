@@ -84,7 +84,7 @@ export default function RegisterPage() {
         subscriptionStartDate: Date.now(),
         subscriptionEndDate: Date.now() + 30 * 24 * 60 * 60 * 1000, // 30 days
         isActive: true,
-      });
+      } as any);
 
       // Store cafe ID in localStorage
       localStorage.setItem('current_cafe_id', newCafe.id);

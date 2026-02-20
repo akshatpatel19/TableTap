@@ -3,11 +3,11 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { auth } from '@/lib/firebase';
-import { getCafeByEmail, getSubscription, Cafe, Subscription, createSubscription, createMenuItem, getOrders, updateOrder, Order, isMonthlyPaymentDue, getPendingPayments, isPaymentReminderDue, isPaymentOverdue, getDaysRemainingUntilDue } from '@/lib/db';
+import { getCafeByEmail, getSubscription, Cafe, Subscription, createSubscription, createMenuItem, getOrders, updateOrder, Order, isMonthlyPaymentDue, getPendingPayments, isPaymentReminderDue, isPaymentOverdue, getDaysRemainingUntilDue, getAdminSettings, AdminSettings, subscribeToAdminSettings, subscribeToCafeByEmail } from '@/lib/db';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, LogOut, QrCode, Menu, Users, Settings, Tag, FileText, TrendingUp, X } from 'lucide-react';
+import { Loader2, LogOut, QrCode, Menu, Users, Settings, Tag, FileText, TrendingUp, X, Megaphone, ShieldAlert } from 'lucide-react';
 import { SubscriptionPlansComponent, SubscriptionPlan } from '@/components/SubscriptionPlans';
 import SetupFeePaymentModal from '@/components/SetupFeePaymentModal';
 import MonthlySubscriptionModal from '@/components/MonthlySubscriptionModal';
@@ -31,12 +31,16 @@ export default function OwnerDashboard() {
   const [daysRemaining, setDaysRemaining] = useState<number | null>(null);
   const [pendingPayments, setPendingPayments] = useState<any>(null);
   const [showTableUpgrades, setShowTableUpgrades] = useState(true);
+  const [adminSettings, setAdminSettings] = useState<AdminSettings | null>(null);
 
   useEffect(() => {
     // Use onAuthStateChanged so we wait for Firebase to restore the auth
     // session asynchronously on page refresh (auth.currentUser is null
     // synchronously until Firebase finishes restoring the persisted token).
-    const unsubscribe = auth.onAuthStateChanged(async (currentUser) => {
+    let unsubscribeCafe: (() => void) | undefined;
+    let unsubscribeSettings: (() => void) | undefined;
+
+    const unsubscribeAuth = auth.onAuthStateChanged(async (currentUser) => {
       if (!currentUser) {
         router.push('/owner/login');
         return;
@@ -52,12 +56,22 @@ export default function OwnerDashboard() {
         setCafe(cafeData);
         localStorage.setItem('current_cafe_id', cafeData.id);
 
+        unsubscribeCafe = subscribeToCafeByEmail(currentUser.email || '', (updatedCafe) => {
+          if (updatedCafe) setCafe(updatedCafe);
+        });
+
+        unsubscribeSettings = subscribeToAdminSettings((updatedSettings) => {
+          setAdminSettings(updatedSettings);
+        });
+
         const subscriptionData = await getSubscription(cafeData.id);
         setSubscription(subscriptionData);
 
         const ordersData = await getOrders(cafeData.id);
         setAllOrders(ordersData);
         setOrders(ordersData.slice(0, 10));
+
+
 
         // Check subscription payment status
         const pending = await getPendingPayments(cafeData.id);
@@ -94,7 +108,11 @@ export default function OwnerDashboard() {
       }
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribeAuth();
+      if (unsubscribeCafe) unsubscribeCafe();
+      if (unsubscribeSettings) unsubscribeSettings();
+    };
   }, []);
 
   const handleSelectPlan = async (plan: SubscriptionPlan, duration: 'monthly' | 'quarterly' | 'yearly') => {
@@ -173,6 +191,67 @@ export default function OwnerDashboard() {
     );
   }
 
+  if (adminSettings?.maintenanceMode) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-background border-t-8 border-amber-500">
+        <div className="max-w-md w-full p-8 text-center space-y-6">
+          <div className="w-20 h-20 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <ShieldAlert className="h-10 w-10 text-amber-600" />
+          </div>
+          <h1 className="text-3xl font-bold text-foreground">System Maintenance</h1>
+          <p className="text-muted-foreground text-lg">
+            The platform is currently undergoing scheduled maintenance.
+          </p>
+          <div className="p-4 bg-muted/50 rounded-lg text-sm text-left border">
+            <p className="font-semibold text-foreground mb-1">What does this mean?</p>
+            <ul className="list-disc list-inside text-muted-foreground space-y-1">
+              <li>Dashboard access is temporarily paused.</li>
+              <li>Customer ordering is temporarily disabled.</li>
+              <li>No data is lost; everything will resume shortly.</li>
+            </ul>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Thank you for your patience while we upgrade our systems.
+          </p>
+          <Button onClick={handleLogout} variant="outline" className="w-full mt-4">
+            <LogOut className="h-4 w-4 mr-2" />
+            Log out
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (cafe && !cafe.isActive) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-background border-t-8 border-red-600">
+        <div className="max-w-md w-full p-8 text-center space-y-6">
+          <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <X className="h-10 w-10 text-red-600" />
+          </div>
+          <h1 className="text-3xl font-bold text-foreground">Account Suspended</h1>
+          <p className="text-muted-foreground text-lg">
+            Your cafe account has been blocked by the administration.
+          </p>
+          <div className="p-4 bg-muted/50 rounded-lg text-sm text-left border">
+            <p className="font-semibold text-foreground mb-1">What does this mean?</p>
+            <ul className="list-disc list-inside text-muted-foreground space-y-1">
+              <li>You cannot access your dashboard, menu, or settings.</li>
+              <li>Customers cannot place new orders for your cafe.</li>
+            </ul>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Please contact support or the administrator to resolve this issue and restore your access.
+          </p>
+          <Button onClick={handleLogout} variant="outline" className="w-full mt-4">
+            <LogOut className="h-4 w-4 mr-2" />
+            Log out
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   const isSubscriptionActive = subscription && new Date(subscription.endDate) > new Date();
 
   const handlePaymentRecorded = async () => {
@@ -232,6 +311,21 @@ export default function OwnerDashboard() {
       </div>
 
       <div className="max-w-6xl mx-auto px-4 py-8">
+        {/* Global Announcement Banner */}
+        {adminSettings?.noticeActive && adminSettings?.globalNotice && (
+          <div className="mb-8 rounded-xl border border-primary/20 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent p-4 flex items-start gap-4 shadow-sm animate-in fade-in slide-in-from-top-4">
+            <div className="p-2 bg-primary/20 rounded-lg text-primary mt-0.5 flex-shrink-0">
+              <Megaphone className="h-5 w-5" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-foreground text-sm uppercase tracking-wider mb-1">Platform Notice</h3>
+              <p className="text-muted-foreground whitespace-pre-wrap leading-relaxed">
+                {adminSettings.globalNotice}
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Subscription Payment Status */}
         {cafe && (
           <>

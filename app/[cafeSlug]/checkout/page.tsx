@@ -2,11 +2,11 @@
 
 import React, { useEffect, useState } from 'react';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
-import { getCafeBySlug, createOrder, updateOrder, Cafe } from '@/lib/db';
+import { getCafeBySlug, createOrder, updateOrder, Cafe, getAdminSettings } from '@/lib/db';
 import { useOrder } from '@/lib/context/OrderContext';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Loader2 } from 'lucide-react';
+import { Loader2, ShieldAlert } from 'lucide-react';
 import { formatAmountForUPI } from '@/lib/upi';
 
 export default function CheckoutPage() {
@@ -21,6 +21,7 @@ export default function CheckoutPage() {
   const [notes, setNotes] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'online' | 'counter'>('counter');
   const [loading, setLoading] = useState(false);
+  const [maintenance, setMaintenance] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const cafeSlug = params.cafeSlug as string;
@@ -28,6 +29,12 @@ export default function CheckoutPage() {
   useEffect(() => {
     const loadCafe = async () => {
       try {
+        const globalSettings = await getAdminSettings();
+        if (globalSettings?.maintenanceMode) {
+          setMaintenance(true);
+          return;
+        }
+
         const cafeData = await getCafeBySlug(cafeSlug);
         if (!cafeData) {
           setError('Cafe not found');
@@ -42,6 +49,28 @@ export default function CheckoutPage() {
 
     loadCafe();
   }, [cafeSlug]);
+
+  if (maintenance) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-background border-t-8 border-amber-500">
+        <div className="max-w-md w-full p-8 text-center space-y-6">
+          <div className="w-20 h-20 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <ShieldAlert className="h-10 w-10 text-amber-600" />
+          </div>
+          <h1 className="text-3xl font-bold text-foreground">Under Maintenance</h1>
+          <p className="text-muted-foreground text-lg">
+            We are currently upgrading our systems.
+          </p>
+          <p className="text-sm text-muted-foreground">
+            Checkout is temporarily paused. Please check back in a few minutes.
+          </p>
+          <Button onClick={() => router.back()} variant="outline" className="mt-4">
+            Return
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   if (!cafe) {
     return (

@@ -2,11 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
-import { getCafeBySlug, getMenuItems, Cafe, MenuItem, getCafeDiscounts, Discount } from '@/lib/db';
+import { getCafeBySlug, getMenuItems, Cafe, MenuItem, getCafeDiscounts, Discount, getAdminSettings } from '@/lib/db';
 import { MenuCard } from '@/components/MenuCard';
 import { OrderCart } from '@/components/OrderCart';
 import { FloatingOrderCart } from '@/components/FloatingOrderCart';
-import { Loader2 } from 'lucide-react';
+import { Loader2, ShieldAlert } from 'lucide-react';
 
 export default function MenuPage() {
   const params = useParams();
@@ -16,6 +16,7 @@ export default function MenuPage() {
   const [discounts, setDiscounts] = useState<Discount[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [loading, setLoading] = useState(true);
+  const [maintenance, setMaintenance] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const cafeSlug = params.cafeSlug as string;
@@ -25,6 +26,13 @@ export default function MenuPage() {
     const loadCafeAndMenu = async () => {
       try {
         setLoading(true);
+        const globalSettings = await getAdminSettings();
+        if (globalSettings?.maintenanceMode) {
+          setMaintenance(true);
+          setLoading(false);
+          return;
+        }
+
         const cafeData = await getCafeBySlug(cafeSlug);
 
         if (!cafeData) {
@@ -79,6 +87,25 @@ export default function MenuPage() {
     );
   }
 
+  if (maintenance) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-background border-t-8 border-amber-500">
+        <div className="max-w-md w-full p-8 text-center space-y-6">
+          <div className="w-20 h-20 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <ShieldAlert className="h-10 w-10 text-amber-600" />
+          </div>
+          <h1 className="text-3xl font-bold text-foreground">Under Maintenance</h1>
+          <p className="text-muted-foreground text-lg">
+            We are currently upgrading our systems.
+          </p>
+          <p className="text-sm text-muted-foreground">
+            Ordering is temporarily paused. Please check back in a few minutes.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   if (error || !cafe) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -120,11 +147,10 @@ export default function MenuPage() {
                 <div className="flex flex-wrap gap-2">
                   <button
                     onClick={() => setSelectedCategory('all')}
-                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                      selectedCategory === 'all'
+                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${selectedCategory === 'all'
                         ? 'bg-primary text-primary-foreground'
                         : 'bg-card text-foreground border hover:border-primary'
-                    }`}
+                      }`}
                   >
                     All
                   </button>
@@ -132,11 +158,10 @@ export default function MenuPage() {
                     <button
                       key={category}
                       onClick={() => setSelectedCategory(category)}
-                      className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                        selectedCategory === category
+                      className={`px-4 py-2 rounded-lg font-medium transition-colors ${selectedCategory === category
                           ? 'bg-primary text-primary-foreground'
                           : 'bg-card text-foreground border hover:border-primary'
-                      }`}
+                        }`}
                     >
                       {category}
                     </button>

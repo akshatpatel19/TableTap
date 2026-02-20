@@ -11,6 +11,7 @@ import {
   where,
   Query,
   QueryConstraint,
+  onSnapshot
 } from 'firebase/firestore';
 
 export interface Cafe {
@@ -63,6 +64,9 @@ export interface Cafe {
     verifiedAt?: number;
     notes?: string;
   }>;
+  upcomingPaymentEmailSentAt?: number | null;
+  overduePaymentEmailSentAt?: number | null;
+  suspensionWarningEmailSentAt?: number | null;
   createdAt: number;
   updatedAt: number;
 }
@@ -72,6 +76,9 @@ export interface AdminSettings {
   upiId: string; // Admin's UPI ID for receiving payments
   setupFeeAmount: number; // 4999
   monthlyFeePerTable: number; // 199
+  globalNotice?: string;
+  noticeActive?: boolean;
+  maintenanceMode?: boolean;
   createdAt: number;
   updatedAt: number;
 }
@@ -393,7 +400,7 @@ export const verifySetupFeePayment = async (cafeId: string, adminId: string, app
     if (payment.type === 'setup' && payment.status === 'pending') {
       return {
         ...payment,
-        status: approved ? 'paid' : 'rejected',
+        status: (approved ? 'paid' : 'rejected') as 'paid' | 'rejected',
         verifiedBy: adminId,
         verifiedAt: verificationTime,
       };
@@ -447,7 +454,7 @@ export const verifyMonthlyPayment = async (cafeId: string, paymentId: string, ad
     if (payment.id === paymentId) {
       return {
         ...payment,
-        status: approved ? 'paid' : 'rejected',
+        status: (approved ? 'paid' : 'rejected') as 'paid' | 'rejected',
         verifiedBy: adminId,
         verifiedAt: verificationTime,
       };
@@ -464,6 +471,9 @@ export const verifyMonthlyPayment = async (cafeId: string, paymentId: string, ad
   await updateCafe(cafeId, {
     subscriptionPayments: updatedPayments,
     nextMonthlyPaymentDueDate: nextMonthlyDue,
+    upcomingPaymentEmailSentAt: null,
+    overduePaymentEmailSentAt: null,
+    suspensionWarningEmailSentAt: null,
   });
 
   return approved;
@@ -546,6 +556,9 @@ export const updateAdminSettings = async (settings: Partial<AdminSettings>) => {
         upiId: settings.upiId || '',
         setupFeeAmount: settings.setupFeeAmount || 4999,
         monthlyFeePerTable: settings.monthlyFeePerTable || 199,
+        globalNotice: settings.globalNotice || '',
+        noticeActive: settings.noticeActive || false,
+        maintenanceMode: settings.maintenanceMode || false,
         createdAt: Date.now(),
         updatedAt: Date.now(),
       });
@@ -641,7 +654,7 @@ export const verifyTableUpgradePayment = async (
     if (payment.paymentId === paymentId) {
       return {
         ...payment,
-        status: approved ? 'paid' : 'rejected',
+        status: (approved ? 'paid' : 'rejected') as 'paid' | 'rejected',
         verifiedBy: adminId,
         verifiedAt: verificationTime,
       };
@@ -715,4 +728,80 @@ export const recordTableDowngrade = async (
 // Generate unique payment ID
 const generatePaymentId = (): string => {
   return `PAY-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+};
+
+// REALTIME LISTENERS
+export function subscribeToAdminSettings(callback: (settings: AdminSettings | null) => void) {
+  const docRef = doc(db, 'adminSettings', 'global');
+  return onSnapshot(docRef, (docSnap) => {
+    if (docSnap.exists()) {
+      callback({ id: docSnap.id, ...docSnap.data() } as AdminSettings);
+    } else {
+      callback(null);
+    }
+  });
+}
+
+export function subscribeToCafeByEmail(email: string, callback: (cafe: Cafe | null) => void) {
+  const q = query(collection(db, 'cafes'), where('email', '==', email));
+  return onSnapshot(q, (querySnapshot) => {
+    if (!querySnapshot.empty) {
+      const docSnap = querySnapshot.docs[0];
+      callback({ id: docSnap.id, ...docSnap.data() } as Cafe);
+    } else {
+      callback(null);
+    }
+  });
+}
+
+// Enforce automatic suspensions for cafes overdue by more than 30 days
+export const enforceOverdueSuspensions = async () => {
+  try {
+    const cafes = await getAllCafes();
+    const now = Date.now();
+    const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+    const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
+
+    for (const cafe of cafes) {
+      if (!cafe.isActive || cafe.setupFeeStatus !== 'paid') continue;
+
+      const dueDate = cafe.nextMonthlyPaymentDueDate;
+      if (!dueDate) continue;
+
+      // 1. Upcoming Warning (3 days before due)
+      if (now >= dueDate - THREE_DAYS_MS && now < dueDate && !cafe.upcomingPaymentEmailSentAt) {
+        await fetch(`/api/admin/send-system-email`, {
+          method: 'POST',
+          body: JSON.stringify({ cafeName: cafe.name, cafeEmail: cafe.email, notificationType: 'upcoming' })
+        }).catch(err => console.error(err));
+        await updateCafe(cafe.id, { upcomingPaymentEmailSentAt: now });
+      }
+
+      // 2. Overdue Warning (Day 0)
+      if (now >= dueDate && now < dueDate + THIRTY_DAYS_MS - THREE_DAYS_MS && !cafe.overduePaymentEmailSentAt) {
+        await fetch(`/api/admin/send-system-email`, {
+          method: 'POST',
+          body: JSON.stringify({ cafeName: cafe.name, cafeEmail: cafe.email, notificationType: 'overdue' })
+        }).catch(err => console.error(err));
+        await updateCafe(cafe.id, { overduePaymentEmailSentAt: now });
+      }
+
+      // 3. Final Suspension Warning (Day 27 overdue, 3 days before block)
+      if (now >= dueDate + THIRTY_DAYS_MS - THREE_DAYS_MS && now < dueDate + THIRTY_DAYS_MS && !cafe.suspensionWarningEmailSentAt) {
+        await fetch(`/api/admin/send-system-email`, {
+          method: 'POST',
+          body: JSON.stringify({ cafeName: cafe.name, cafeEmail: cafe.email, notificationType: 'suspension_warning' })
+        }).catch(err => console.error(err));
+        await updateCafe(cafe.id, { suspensionWarningEmailSentAt: now });
+      }
+
+      // 4. Execution Block
+      if (now >= dueDate + THIRTY_DAYS_MS) {
+        await updateCafe(cafe.id, { isActive: false });
+        console.log(`[Overdue Enforcement] Auto-suspended cafe ${cafe.id} for 30+ days overdue payment.`);
+      }
+    }
+  } catch (error) {
+    console.error('[v0] Error running overdue enforcement:', error);
+  }
 };
