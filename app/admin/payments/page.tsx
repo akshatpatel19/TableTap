@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getAllCafes, Cafe, verifyMonthlyPayment, updateCafe } from '@/lib/db';
+import { subscribeToAllCafes, Cafe, verifyMonthlyPayment, updateCafe } from '@/lib/db';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -22,58 +22,55 @@ export default function AdminPaymentsDashboard() {
     const [adminId, setAdminId] = useState<string>('');
 
     useEffect(() => {
-        const loadData = async () => {
-            try {
-                const adminToken = localStorage.getItem('admin_token');
-                if (!adminToken) {
-                    router.push('/admin/login');
-                    return;
-                }
-                setAdminId(adminToken); // In a real app, this would be a proper UUID from the auth session
+        const adminToken = localStorage.getItem('admin_token');
+        if (!adminToken) {
+            router.push('/admin/login');
+            return;
+        }
 
-                const allCafes = await getAllCafes();
+        setAdminId(adminToken);
+
+        // Subscribe to cafes collection for realtime updates
+        let first = true;
+        const unsubscribe = subscribeToAllCafes((allCafes) => {
+            try {
                 const allPending: PendingPayment[] = [];
 
                 allCafes.forEach((cafe) => {
-                    // Extract Subscription Payments
                     const payments = cafe.subscriptionPayments || [];
                     payments.forEach((payment) => {
                         if (payment.status === 'pending') {
-                            allPending.push({
-                                cafe,
-                                paymentData: payment,
-                                typeOverride: payment.type,
-                            });
+                            allPending.push({ cafe, paymentData: payment, typeOverride: payment.type });
                         }
                     });
 
-                    // Extract Table Upgrade Payments
                     const upgradePayments = cafe.tableUpgradePayments || [];
                     upgradePayments.forEach((payment) => {
                         if (payment.status === 'pending') {
-                            allPending.push({
-                                cafe,
-                                paymentData: payment as any,
-                                typeOverride: 'upgrade'
-                            });
+                            allPending.push({ cafe, paymentData: payment as any, typeOverride: 'upgrade' });
                         }
                     });
                 });
 
-                // Sort by date submitted (descending, assuming ID contains timestamp info implicitly via generation, or falling back to dueDate)
                 setPendingPayments(allPending.sort((a, b) => {
                     const dateA = 'dueDate' in a.paymentData ? a.paymentData.dueDate : parseInt(a.paymentData.id.split('-')[1] || '0');
                     const dateB = 'dueDate' in b.paymentData ? b.paymentData.dueDate : parseInt(b.paymentData.id.split('-')[1] || '0');
                     return dateB - dateA;
                 }));
-            } catch (error) {
-                console.error('Error loading payments:', error);
-            } finally {
-                setLoading(false);
-            }
-        };
 
-        loadData();
+                // Turn off loading after first snapshot
+                if (first) {
+                    setLoading(false);
+                    first = false;
+                }
+            } catch (err) {
+                console.error('Error processing realtime payments snapshot:', err);
+            }
+        });
+
+        return () => {
+            if (unsubscribe) unsubscribe();
+        };
     }, [router]);
 
     const handleVerification = async (paymentId: string, cafeId: string, paymentType: 'setup' | 'monthly' | 'upgrade', approved: boolean) => {

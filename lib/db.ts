@@ -754,6 +754,14 @@ export function subscribeToCafeByEmail(email: string, callback: (cafe: Cafe | nu
   });
 }
 
+// Subscribe to all cafes (useful for admin dashboards needing realtime updates)
+export function subscribeToAllCafes(callback: (cafes: Cafe[]) => void) {
+  const cafesRef = collection(db, 'cafes');
+  return onSnapshot(cafesRef, (querySnapshot) => {
+    const cafes = querySnapshot.docs.map((docSnap) => ({ id: docSnap.id, ...(docSnap.data() as Cafe) } as Cafe));
+    callback(cafes);
+  });
+}
 // Enforce automatic suspensions for cafes overdue by more than 30 days
 export const enforceOverdueSuspensions = async () => {
   try {
