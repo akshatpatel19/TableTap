@@ -151,10 +151,18 @@ export default function TableUpgradeModal({
     }
   };
 
+  const handleClose = () => {
+    // Save current table count to localStorage when closing (dismissing)
+    if (step === 'confirmation') {
+      localStorage.setItem(`table_upgrade_count_${cafe.id}`, cafe.tables.toString());
+    }
+    onClose();
+  };
+
   return (
     <Dialog open={open} onOpenChange={(newOpen) => {
       if (newOpen === false && step !== 'verification') {
-        onClose();
+        handleClose();
       }
     }}>
       <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
@@ -226,7 +234,7 @@ export default function TableUpgradeModal({
               {error && <div className="p-3 bg-destructive/10 text-destructive text-sm rounded-lg">{error}</div>}
 
               <div className="flex gap-3">
-                <Button onClick={() => onClose()} variant="outline" className="flex-1">
+                <Button onClick={handleClose} variant="outline" className="flex-1">
                   Cancel
                 </Button>
                 {isDowngrade ? (

@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { getCafeBySlug, getCafeOrders, getMenuItems, Order, MenuItem, Cafe } from '@/lib/db';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Loader2, LogOut, Settings, RefreshCw } from 'lucide-react';
+import { Loader2, LogOut, Settings, RefreshCw, FileText, Download } from 'lucide-react';
 import { StaffOrdersView } from '@/components/StaffOrdersView';
 import { MenuManagement } from '@/components/MenuManagement';
 
@@ -93,6 +93,16 @@ export default function StaffDashboard() {
             <p className="text-sm text-muted-foreground">Staff Dashboard</p>
           </div>
           <div className="flex items-center gap-3">
+            <a href={`/owner/bills`} target="_blank" rel="noopener noreferrer">
+              <Button
+                variant="outline"
+                size="sm"
+                title="View bills and invoices"
+              >
+                <FileText className="h-4 w-4 mr-2" />
+                Bills
+              </Button>
+            </a>
             <Button
               onClick={handleRefresh}
               disabled={refreshing}

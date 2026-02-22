@@ -174,11 +174,32 @@ export default function BillsPage() {
         (order.items || []).map((item: any) => {
           const qty = item.quantity || 1;
           const amount = (item.price || 0) * qty;
+          const addOnsTotal = item.addOnsTotal || 0;
+          const basePrice = item.basePrice || item.price;
+          
           return `
                     <tr>
-                      <td>${item.name}</td>
+                      <td>
+                        <div>${item.name}</div>
+                        ${item.addOns && item.addOns.length > 0 ? `
+                          <div style="font-size: 11px; color: #666; margin-top: 4px; padding-left: 10px; border-left: 2px solid #ddd;">
+                            ${item.addOns.map((addon: any) => `
+                              <div>+ ${addon.name} (₹${addon.price})</div>
+                            `).join('')}
+                          </div>
+                        ` : ''}
+                      </td>
                       <td style="text-align: center;">${qty}</td>
-                      <td class="amount-cell">₹${(item.price || 0).toFixed(2)}</td>
+                      <td class="amount-cell">
+                        ${item.addOns && item.addOns.length > 0 ? `
+                          <div style="font-size: 11px;">
+                            <div>Base: ₹${basePrice.toFixed(2)}</div>
+                            <div>Add-ons: ₹${addOnsTotal.toFixed(2)}</div>
+                          </div>
+                        ` : `
+                          ₹${(item.price || 0).toFixed(2)}
+                        `}
+                      </td>
                       <td class="amount-cell">₹${amount.toFixed(2)}</td>
                     </tr>
                   `;

@@ -13,6 +13,7 @@ import SetupFeePaymentModal from '@/components/SetupFeePaymentModal';
 import MonthlySubscriptionModal from '@/components/MonthlySubscriptionModal';
 import PaymentReminderModal from '@/components/PaymentReminderModal';
 import Link from 'next/link';
+import PopupRenderer from '@/components/PopupRenderer';
 
 export default function OwnerDashboard() {
   const router = useRouter();
@@ -32,6 +33,7 @@ export default function OwnerDashboard() {
   const [pendingPayments, setPendingPayments] = useState<any>(null);
   const [showTableUpgrades, setShowTableUpgrades] = useState(true);
   const [adminSettings, setAdminSettings] = useState<AdminSettings | null>(null);
+  const [lastConfirmedTableCount, setLastConfirmedTableCount] = useState<number | null>(null);
 
   useEffect(() => {
     // Use onAuthStateChanged so we wait for Firebase to restore the auth
@@ -55,9 +57,23 @@ export default function OwnerDashboard() {
 
         setCafe(cafeData);
         localStorage.setItem('current_cafe_id', cafeData.id);
+        
+        // Load last confirmed table count from localStorage
+        const stored = localStorage.getItem(`table_upgrade_count_${cafeData.id}`);
+        setLastConfirmedTableCount(stored ? parseInt(stored) : cafeData.tables);
 
         unsubscribeCafe = subscribeToCafeByEmail(currentUser.email || '', (updatedCafe) => {
-          if (updatedCafe) setCafe(updatedCafe);
+          if (updatedCafe) {
+            setCafe(updatedCafe);
+            // Check if table count actually changed from the confirmed count
+            const stored = localStorage.getItem(`table_upgrade_count_${updatedCafe.id}`);
+            const confirmedCount = stored ? parseInt(stored) : updatedCafe.tables;
+            
+            // Only show popup if table count differs from confirmed count
+            if (updatedCafe.tables !== confirmedCount) {
+              setShowTableUpgrades(true);
+            }
+          }
         });
 
         unsubscribeSettings = subscribeToAdminSettings((updatedSettings) => {
@@ -295,6 +311,8 @@ export default function OwnerDashboard() {
           />
         </>
       )}
+
+      {cafe && <PopupRenderer cafeId={cafe.id} />}
 
       {/* Header */}
       <div className="sticky top-0 z-40 bg-card border-b shadow-lg">
