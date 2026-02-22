@@ -129,7 +129,14 @@ export interface Order {
     menuItemId: string;
     name: string;
     quantity: number;
-    price: number;
+    basePrice: number; // Price of the base item
+    addOns?: Array<{
+      id: string;
+      name: string;
+      price: number;
+    }>;
+    addOnsTotal?: number; // Total price of all add-ons
+    price: number; // Total price (basePrice + addOnsTotal)
   }>;
   totalAmount: number;
   status: 'pending' | 'confirmed' | 'preparing' | 'ready' | 'served' | 'cancelled';

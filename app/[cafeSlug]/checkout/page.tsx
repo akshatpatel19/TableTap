@@ -118,15 +118,24 @@ export default function CheckoutPage() {
         tableId: tableId || 1,
         customerEmail: email,
         customerPhone: phone,
-        items: cart.map((item) => ({
-          menuItemId: item.menuItemId,
-          name: item.name,
-          quantity: item.quantity,
-          price: item.price,
-        })),
+        items: cart.map((item) => {
+          // Calculate base price and add-ons total
+          const addOnsTotal = item.selectedAddOns?.reduce((sum, addon) => sum + addon.price, 0) || 0;
+          const basePrice = item.price - addOnsTotal;
+          
+          return {
+            menuItemId: item.menuItemId,
+            name: item.name,
+            quantity: item.quantity,
+            basePrice: basePrice,
+            addOns: item.selectedAddOns || undefined,
+            addOnsTotal: addOnsTotal > 0 ? addOnsTotal : undefined,
+            price: item.price,
+          };
+        }),
         totalAmount,
         status: 'pending' as const,
-        paymentStatus: (paymentMethod === 'online' ? 'pending' : 'paid') as 'pending' | 'paid' | 'failed',
+        paymentStatus: 'pending' as 'pending' | 'paid' | 'failed',
         paymentMethod,
         notes,
       };
@@ -186,15 +195,37 @@ export default function CheckoutPage() {
           <Card className="p-6">
             <h2 className="text-lg font-semibold text-foreground mb-4">Order Summary</h2>
             <div className="space-y-3 mb-6 pb-6 border-b">
-              {cart.map((item) => (
-                <div key={item.menuItemId} className="flex justify-between">
-                  <div>
-                    <p className="font-medium text-foreground">{item.name}</p>
-                    <p className="text-sm text-muted-foreground">Qty: {item.quantity}</p>
+              {cart.map((item) => {
+                const addOnsTotal = item.selectedAddOns?.reduce((sum, addon) => sum + addon.price, 0) || 0;
+                const basePrice = item.price - addOnsTotal;
+                
+                return (
+                  <div key={`${item.menuItemId}-${item.selectedAddOns?.map(a => a.id).join('-') || 'none'}`} className="flex justify-between">
+                    <div className="flex-1">
+                      <p className="font-medium text-foreground">{item.name}</p>
+                      <p className="text-sm text-muted-foreground">Qty: {item.quantity}</p>
+                      {item.selectedAddOns && item.selectedAddOns.length > 0 && (
+                        <div className="text-xs text-muted-foreground mt-2 space-y-1">
+                          <p className="font-medium">Add-ons:</p>
+                          {item.selectedAddOns.map((addon) => (
+                            <p key={addon.id} className="ml-2">• {addon.name}: ₹{addon.price}</p>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <div className="text-right">
+                      {item.selectedAddOns && item.selectedAddOns.length > 0 && (
+                        <div className="text-xs space-y-1 mb-2">
+                          <div className="text-muted-foreground">
+                            ₹{basePrice} + ₹{addOnsTotal} = <span className="font-semibold text-foreground">₹{item.price}</span>
+                          </div>
+                        </div>
+                      )}
+                      <span className="font-semibold block">₹{(item.price * item.quantity).toFixed(2)}</span>
+                    </div>
                   </div>
-                  <span className="font-semibold">₹{(item.price * item.quantity).toFixed(2)}</span>
-                </div>
-              ))}
+                );
+              })}
             </div>
             <div className="flex justify-between text-lg font-bold">
               <span>Total Amount:</span>
