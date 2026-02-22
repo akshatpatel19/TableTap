@@ -2,12 +2,19 @@
 
 import React, { createContext, useContext, useState } from 'react';
 
+export interface SelectedAddOn {
+  id: string;
+  name: string;
+  price: number;
+}
+
 export interface CartItem {
   menuItemId: string;
   name: string;
   price: number;
   quantity: number;
   description?: string;
+  selectedAddOns?: SelectedAddOn[];
 }
 
 export interface OrderContextType {
@@ -33,10 +40,18 @@ export const OrderProvider: React.FC<{
 
   const addToCart = (item: CartItem) => {
     setCart((prevCart) => {
-      const existingItem = prevCart.find((i) => i.menuItemId === item.menuItemId);
+      // For items with add-ons, always add as a new item (don't combine)
+      if (item.selectedAddOns && item.selectedAddOns.length > 0) {
+        return [...prevCart, item];
+      }
+      
+      // For items without add-ons, combine with existing items
+      const existingItem = prevCart.find((i) => i.menuItemId === item.menuItemId && (!i.selectedAddOns || i.selectedAddOns.length === 0));
       if (existingItem) {
         return prevCart.map((i) =>
-          i.menuItemId === item.menuItemId ? { ...i, quantity: i.quantity + item.quantity } : i
+          i.menuItemId === item.menuItemId && (!i.selectedAddOns || i.selectedAddOns.length === 0)
+            ? { ...i, quantity: i.quantity + item.quantity }
+            : i
         );
       }
       return [...prevCart, item];

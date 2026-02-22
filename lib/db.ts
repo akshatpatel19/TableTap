@@ -83,6 +83,12 @@ export interface AdminSettings {
   updatedAt: number;
 }
 
+export interface AddOn {
+  id: string;
+  name: string;
+  price: number;
+}
+
 export interface MenuItem {
   id: string;
   cafeId: string;
@@ -92,6 +98,7 @@ export interface MenuItem {
   isAvailable: boolean;
   category: string;
   image?: string;
+  addOns?: AddOn[];
   createdAt: number;
   updatedAt: number;
 }
@@ -122,7 +129,14 @@ export interface Order {
     menuItemId: string;
     name: string;
     quantity: number;
-    price: number;
+    basePrice: number; // Price of the base item
+    addOns?: Array<{
+      id: string;
+      name: string;
+      price: number;
+    }>;
+    addOnsTotal?: number; // Total price of all add-ons
+    price: number; // Total price (basePrice + addOnsTotal)
   }>;
   totalAmount: number;
   status: 'pending' | 'confirmed' | 'preparing' | 'ready' | 'served' | 'cancelled';
@@ -145,6 +159,46 @@ export interface Subscription {
   autoRenew: boolean;
   createdAt: number;
   updatedAt: number;
+}
+
+export interface PopupField {
+  id: string;
+  name: string;
+  type: 'text' | 'email' | 'checkbox' | 'textarea' | 'select';
+  label: string;
+  required: boolean;
+  placeholder?: string;
+  options?: string[]; // For select type
+}
+
+export interface AdminPopup {
+  id: string;
+  title: string;
+  description: string;
+  content: string;
+  templateType: 'notification' | 'confirmation' | 'form' | 'terms';
+  hasCheckbox: boolean;
+  checkboxText?: string;
+  isUnclosable: boolean;
+  fields?: PopupField[]; // For form type
+  targetCafes: 'all' | 'specific'; // all cafes or specific ones
+  cafeIds?: string[]; // If specific
+  status: 'draft' | 'active' | 'archived';
+  createdAt: number;
+  updatedAt: number;
+  createdBy: string;
+}
+
+export interface CafePopup {
+  id: string;
+  popupId: string;
+  cafeId: string;
+  dismissed: boolean;
+  dismissedAt?: number;
+  agreedToTerms?: boolean;
+  agreedAt?: number;
+  formResponse?: Record<string, any>;
+  createdAt: number;
 }
 
 // Cafe operations
@@ -811,5 +865,96 @@ export const enforceOverdueSuspensions = async () => {
     }
   } catch (error) {
     console.error('[v0] Error running overdue enforcement:', error);
+  }
+};
+
+// Popup operations
+export const createAdminPopup = async (popupData: Omit<AdminPopup, 'id'>) => {
+  const popupRef = doc(collection(db, 'admin_popups'));
+  const popup: AdminPopup = {
+    ...popupData,
+    id: popupRef.id,
+  };
+  await setDoc(popupRef, popup);
+  return popup;
+};
+
+export const getAdminPopup = async (popupId: string): Promise<AdminPopup | null> => {
+  const docSnap = await getDoc(doc(db, 'admin_popups', popupId));
+  return docSnap.exists() ? ({ id: docSnap.id, ...docSnap.data() } as AdminPopup) : null;
+};
+
+export const getAllAdminPopups = async (): Promise<AdminPopup[]> => {
+  const querySnapshot = await getDocs(query(collection(db, 'admin_popups'), where('status', '!=', 'archived')));
+  return querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as AdminPopup));
+};
+
+export const updateAdminPopup = async (popupId: string, updates: Partial<AdminPopup>) => {
+  await updateDoc(doc(db, 'admin_popups', popupId), { ...updates, updatedAt: Date.now() });
+};
+
+export const deleteAdminPopup = async (popupId: string) => {
+  await updateDoc(doc(db, 'admin_popups', popupId), { status: 'archived', updatedAt: Date.now() });
+};
+
+export const getCafePopups = async (cafeId: string): Promise<AdminPopup[]> => {
+  const allPopups = await getAllAdminPopups();
+  const filteredByTarget = allPopups.filter(popup => 
+    popup.targetCafes === 'all' || (popup.cafeIds && popup.cafeIds.includes(cafeId))
+  );
+  
+  // Filter out popups where cafe has already agreed or dismissed
+  const q = query(collection(db, 'cafe_popups'), where('cafeId', '==', cafeId));
+  const querySnapshot = await getDocs(q);
+  const cafeResponses = querySnapshot.docs.map(doc => doc.data() as CafePopup);
+  
+  // Only return popups that the cafe hasn't agreed to yet
+  return filteredByTarget.filter(popup => 
+    !cafeResponses.find(response => response.popupId === popup.id && response.agreedToTerms === true)
+  );
+};
+
+export const getCafePopupResponses = async (popupId: string) => {
+  const q = query(collection(db, 'cafe_popups'), where('popupId', '==', popupId));
+  const querySnapshot = await getDocs(q);
+  return querySnapshot.docs.map(doc => doc.data() as CafePopup);
+};
+
+export const saveCafePopupResponse = async (cafeId: string, popupId: string, response: any) => {
+  const docRef = doc(collection(db, 'cafe_popups'));
+  const cafePopup: CafePopup = {
+    id: docRef.id,
+    popupId,
+    cafeId,
+    dismissed: response.agreedToTerms ? false : true,
+    agreedToTerms: response.agreedToTerms,
+    formResponse: response.formData,
+    createdAt: Date.now(),
+    ...(response.agreedToTerms && { agreedAt: Date.now() }),
+    ...(!response.agreedToTerms && { dismissedAt: Date.now() }),
+  };
+  await setDoc(docRef, cafePopup);
+  return cafePopup;
+};
+
+export const dismissCafePopup = async (cafeId: string, popupId: string) => {
+  const q = query(collection(db, 'cafe_popups'), where('cafeId', '==', cafeId), where('popupId', '==', popupId));
+  const querySnapshot = await getDocs(q);
+  if (!querySnapshot.empty) {
+    const docId = querySnapshot.docs[0].id;
+    await updateDoc(doc(db, 'cafe_popups', docId), { dismissed: true, dismissedAt: Date.now() });
+  } else {
+    // Create a new record if it doesn't exist
+    const docRef = doc(collection(db, 'cafe_popups'));
+    const cafePopup: CafePopup = {
+      id: docRef.id,
+      popupId,
+      cafeId,
+      dismissed: true,
+      dismissedAt: Date.now(),
+      agreedToTerms: false,
+      createdAt: Date.now(),
+    };
+    await setDoc(docRef, cafePopup);
   }
 };

@@ -16,7 +16,8 @@ import {
     X,
     Database,
     CreditCard,
-    PieChart
+    PieChart,
+    MessageSquare
 } from 'lucide-react';
 
 interface AdminLayoutProps {
@@ -48,6 +49,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
         { name: 'Platform Analytics', href: '/admin/analytics/platform', icon: TrendingUp },
         { name: 'Cafe Analytics', href: '/admin/analytics/cafes', icon: PieChart },
         { name: 'Announcements', href: '/admin/announcements', icon: Megaphone },
+        { name: 'Popups', href: '/admin/popups', icon: MessageSquare },
         { name: 'Payments', href: '/admin/payments', icon: CreditCard },
         { name: 'Database', href: '/admin/database', icon: Database },
         { name: 'Settings', href: '/admin/settings', icon: Settings },

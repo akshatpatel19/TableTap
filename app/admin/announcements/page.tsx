@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { getAdminSettings, updateAdminSettings, AdminSettings } from '@/lib/db';
+import { getAdminSettings, updateAdminSettings, AdminSettings, getAllAdminPopups, getCafePopupResponses, AdminPopup, CafePopup, getCafe, Cafe } from '@/lib/db';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Loader2, Megaphone, Save, Mail, CheckCircle2 } from 'lucide-react';
+import { Loader2, Megaphone, Save, Mail, CheckCircle2, Eye, Check, X } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 
@@ -14,6 +14,11 @@ export default function AdminAnnouncementsPage() {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [broadcasting, setBroadcasting] = useState(false);
+    const [popups, setPopups] = useState<AdminPopup[]>([]);
+    const [popupResponses, setPopupResponses] = useState<Record<string, CafePopup[]>>({});
+    const [cafeLookup, setCafeLookup] = useState<Record<string, Cafe>>({});
+    const [selectedPopupId, setSelectedPopupId] = useState<string | null>(null);
+    const [loadingResponses, setLoadingResponses] = useState(false);
 
     const [formData, setFormData] = useState({
         globalNotice: '',
@@ -36,6 +41,10 @@ export default function AdminAnnouncementsPage() {
                         noticeActive: existingSettings.noticeActive || false,
                     });
                 }
+
+                // Load all popups
+                const allPopups = await getAllAdminPopups();
+                setPopups(allPopups);
             } catch (error) {
                 console.error('Error loading admin settings:', error);
             } finally {
@@ -92,6 +101,32 @@ export default function AdminAnnouncementsPage() {
             toast.error(error.message || 'Failed to send broadcast email.');
         } finally {
             setBroadcasting(false);
+        }
+    };
+
+    const loadPopupResponses = async (popupId: string) => {
+        setLoadingResponses(true);
+        try {
+            const responses = await getCafePopupResponses(popupId);
+            setPopupResponses(prev => ({ ...prev, [popupId]: responses }));
+            setSelectedPopupId(popupId);
+
+            // Load cafe names
+            const newCafeLookup = { ...cafeLookup };
+            for (const response of responses) {
+                if (!newCafeLookup[response.cafeId]) {
+                    const cafe = await getCafe(response.cafeId);
+                    if (cafe) {
+                        newCafeLookup[response.cafeId] = cafe;
+                    }
+                }
+            }
+            setCafeLookup(newCafeLookup);
+        } catch (error) {
+            console.error('Error loading popup responses:', error);
+            toast.error('Failed to load popup responses');
+        } finally {
+            setLoadingResponses(false);
         }
     };
 
@@ -180,6 +215,121 @@ export default function AdminAnnouncementsPage() {
                     The <strong>Broadcast via Email</strong> action will immediately fetch all <em>active</em> cafe email addresses and dispatch a formatted email outlining your notice. Use this sparingly for critical platform updates so cafe owners don't unsubscribe or mark emails as spam.
                 </p>
             </Card>
+
+            {/* Popup Management Section */}
+            <div className="mt-8">
+                <h2 className="text-2xl font-bold text-foreground mb-4">Popup Management</h2>
+
+                {popups.length === 0 ? (
+                    <Card className="p-6 border-dashed border-2 text-center">
+                        <p className="text-muted-foreground">No popups created yet.</p>
+                    </Card>
+                ) : (
+                    <div className="space-y-4">
+                        {popups.map((popup) => {
+                            const responses = popupResponses[popup.id] || [];
+                            const agreedCount = responses.filter(r => r.agreedToTerms).length;
+                            const seenCount = responses.length;
+
+                            return (
+                                <Card key={popup.id} className="p-4 border-l-4 border-l-primary">
+                                    <div className="flex items-start justify-between gap-4 mb-3">
+                                        <div className="flex-1">
+                                            <h3 className="font-semibold text-foreground">{popup.title}</h3>
+                                            <p className="text-sm text-muted-foreground mt-1">{popup.description}</p>
+                                        </div>
+                                        <div className="flex items-center gap-2 px-3 py-1 bg-muted rounded-full text-sm font-medium">
+                                            {popup.status === 'active' ? (
+                                                <span className="text-green-600">● Active</span>
+                                            ) : popup.status === 'draft' ? (
+                                                <span className="text-yellow-600">● Draft</span>
+                                            ) : (
+                                                <span className="text-gray-600">● Archived</span>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <div className="flex flex-wrap gap-3 mb-4">
+                                        <div className="bg-blue-50 px-3 py-2 rounded-lg">
+                                            <p className="text-xs text-muted-foreground">Type</p>
+                                            <p className="font-medium text-foreground capitalize">{popup.templateType}</p>
+                                        </div>
+                                        <div className="bg-blue-50 px-3 py-2 rounded-lg">
+                                            <p className="text-xs text-muted-foreground">Unclosable</p>
+                                            <p className="font-medium text-foreground">{popup.isUnclosable ? 'Yes' : 'No'}</p>
+                                        </div>
+                                    </div>
+
+                                    <Button
+                                        onClick={() => loadPopupResponses(popup.id)}
+                                        variant="outline"
+                                        size="sm"
+                                        className="w-full"
+                                    >
+                                        {loadingResponses && selectedPopupId === popup.id ? (
+                                            <>
+                                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                                Loading...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Eye className="h-4 w-4 mr-2" />
+                                                View Response Logs ({seenCount} cafes)
+                                            </>
+                                        )}
+                                    </Button>
+
+                                    {selectedPopupId === popup.id && popupResponses[popup.id] && (
+                                        <div className="mt-4 pt-4 border-t space-y-3">
+                                            <div className="flex gap-4 mb-4">
+                                                <div className="flex-1 bg-green-50 p-3 rounded-lg border border-green-200">
+                                                    <p className="text-xs text-green-700">Agreed</p>
+                                                    <p className="text-2xl font-bold text-green-900">{agreedCount}</p>
+                                                </div>
+                                                <div className="flex-1 bg-yellow-50 p-3 rounded-lg border border-yellow-200">
+                                                    <p className="text-xs text-yellow-700">Only Seen</p>
+                                                    <p className="text-2xl font-bold text-yellow-900">{seenCount - agreedCount}</p>
+                                                </div>
+                                            </div>
+
+                                            {responses.length > 0 ? (
+                                                <div className="space-y-2 max-h-80 overflow-y-auto">
+                                                    {responses.map((response) => (
+                                                        <div
+                                                            key={response.id}
+                                                            className={`p-3 rounded-lg border flex items-center justify-between ${response.agreedToTerms
+                                                                    ? 'bg-green-50 border-green-200'
+                                                                    : 'bg-yellow-50 border-yellow-200'
+                                                                }`}
+                                                        >
+                                                            <div className="flex-1">
+                                                                <p className="font-medium text-foreground">
+                                                                    {cafeLookup[response.cafeId]?.name || response.cafeId}
+                                                                </p>
+                                                                <p className="text-xs text-muted-foreground">
+                                                                    {response.agreedToTerms ? 'Agreed' : 'Dismissed'} on{' '}
+                                                                    {new Date(response.agreedToTerms ? response.agreedAt! : response.dismissedAt!).toLocaleDateString()}
+                                                                </p>
+                                                            </div>
+                                                            {response.agreedToTerms ? (
+                                                                <Check className="h-5 w-5 text-green-600" />
+                                                            ) : (
+                                                                <X className="h-5 w-5 text-yellow-600" />
+                                                            )}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            ) : (
+                                                <p className="text-sm text-muted-foreground text-center py-4">No responses yet</p>
+                                            )}
+                                        </div>
+                                    )}
+                                </Card>
+                            );
+                        })}
+                    </div>
+                )}
+            </div>
         </div>
     );
 }

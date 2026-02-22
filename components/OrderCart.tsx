@@ -30,9 +30,14 @@ export const OrderCart: React.FC<OrderCartProps> = ({ cafeSlug }) => {
 
       <div className="space-y-3 max-h-64 overflow-y-auto">
         {cart.map((item) => (
-          <div key={item.menuItemId} className="flex items-center justify-between p-3 bg-card rounded-lg border">
+          <div key={`${item.menuItemId}-${item.selectedAddOns?.map(a => a.id).join('-') || 'none'}`} className="flex items-center justify-between p-3 bg-card rounded-lg border">
             <div className="flex-1">
               <p className="font-medium text-foreground">{item.name}</p>
+              {item.selectedAddOns && item.selectedAddOns.length > 0 && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Add-ons: {item.selectedAddOns.map(a => a.name).join(', ')}
+                </p>
+              )}
               <p className="text-sm text-muted-foreground">₹{item.price} each</p>
             </div>
 
@@ -40,7 +45,14 @@ export const OrderCart: React.FC<OrderCartProps> = ({ cafeSlug }) => {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => updateCartItemQuantity(item.menuItemId, item.quantity - 1)}
+                onClick={() => {
+                  if (item.quantity - 1 <= 0) {
+                    // Find index and remove by reference
+                    removeFromCart(item.menuItemId);
+                  } else {
+                    updateCartItemQuantity(item.menuItemId, item.quantity - 1);
+                  }
+                }}
                 className="h-7 w-7 p-0"
               >
                 <Minus className="h-3 w-3" />

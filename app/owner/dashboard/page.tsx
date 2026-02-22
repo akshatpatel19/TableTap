@@ -13,6 +13,7 @@ import SetupFeePaymentModal from '@/components/SetupFeePaymentModal';
 import MonthlySubscriptionModal from '@/components/MonthlySubscriptionModal';
 import PaymentReminderModal from '@/components/PaymentReminderModal';
 import Link from 'next/link';
+import PopupRenderer from '@/components/PopupRenderer';
 
 export default function OwnerDashboard() {
   const router = useRouter();
@@ -32,6 +33,7 @@ export default function OwnerDashboard() {
   const [pendingPayments, setPendingPayments] = useState<any>(null);
   const [showTableUpgrades, setShowTableUpgrades] = useState(true);
   const [adminSettings, setAdminSettings] = useState<AdminSettings | null>(null);
+  const [lastConfirmedTableCount, setLastConfirmedTableCount] = useState<number | null>(null);
 
   useEffect(() => {
     // Use onAuthStateChanged so we wait for Firebase to restore the auth
@@ -56,8 +58,36 @@ export default function OwnerDashboard() {
         setCafe(cafeData);
         localStorage.setItem('current_cafe_id', cafeData.id);
 
+        // Check if popup was previously dismissed
+        const dismissedKey = `table_upgrade_dismissed_${cafeData.id}`;
+        const dismissedState = localStorage.getItem(dismissedKey);
+        const savedTableCount = dismissedState ? parseInt(dismissedState) : null;
+
+        setLastConfirmedTableCount(savedTableCount || cafeData.tables);
+
+        // Show popup initially only if there are upgrades AND either:
+        // 1. It's never been dismissed, OR
+        // 2. The table count has changed since dismissal
+        const shouldShowInitially = !!(cafeData.tableUpgradePayments &&
+          cafeData.tableUpgradePayments.length > 0 &&
+          (!dismissedState || cafeData.tables !== savedTableCount));
+        setShowTableUpgrades(shouldShowInitially);
+
         unsubscribeCafe = subscribeToCafeByEmail(currentUser.email || '', (updatedCafe) => {
-          if (updatedCafe) setCafe(updatedCafe);
+          if (updatedCafe) {
+            setCafe(updatedCafe);
+            // Check if table count actually changed from the dismissed count
+            const dismissedKey = `table_upgrade_dismissed_${updatedCafe.id}`;
+            const dismissedState = localStorage.getItem(dismissedKey);
+            const savedTableCount = dismissedState ? parseInt(dismissedState) : null;
+
+            // Only show popup if table count differs from saved count
+            if (updatedCafe.tableUpgradePayments &&
+              updatedCafe.tableUpgradePayments.length > 0 &&
+              (!dismissedState || updatedCafe.tables !== savedTableCount)) {
+              setShowTableUpgrades(true);
+            }
+          }
         });
 
         unsubscribeSettings = subscribeToAdminSettings((updatedSettings) => {
@@ -296,6 +326,8 @@ export default function OwnerDashboard() {
         </>
       )}
 
+      {cafe && <PopupRenderer cafeId={cafe.id} />}
+
       {/* Header */}
       <div className="sticky top-0 z-40 bg-card border-b shadow-lg">
         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
@@ -420,7 +452,13 @@ export default function OwnerDashboard() {
           <Card className="p-6 mb-8 border-l-4 border-l-blue-600 bg-blue-50 relative">
             <div className="absolute top-4 right-4">
               <button
-                onClick={() => setShowTableUpgrades(false)}
+                onClick={() => {
+                  // Save current table count to localStorage when closing
+                  if (cafe) {
+                    localStorage.setItem(`table_upgrade_dismissed_${cafe.id}`, cafe.tables.toString());
+                  }
+                  setShowTableUpgrades(false);
+                }}
                 className="p-1 hover:bg-blue-100 rounded-lg transition-colors"
                 aria-label="Close table upgrades"
               >
@@ -429,59 +467,62 @@ export default function OwnerDashboard() {
             </div>
             <div className="space-y-4 pr-6">
               <div>
-                <h3 className="text-lg font-semibold text-blue-900 mb-2">Table Upgrades</h3>
+                <h3 className="text-lg font-semibold text-blue-900 mb-2">Table Upgrades (Latest 3)</h3>
                 <p className="text-sm text-blue-800">
-                  Track your table upgrade requests and payments below.
+                  Track your most recent table upgrade requests and payments below.
                 </p>
               </div>
 
               <div className="space-y-3">
-                {cafe.tableUpgradePayments.map((upgrade) => (
-                  <div key={upgrade.id} className="bg-white rounded-lg p-3 border border-blue-200">
-                    <div className="flex items-start justify-between mb-2">
-                      <div>
-                        <p className="text-sm font-semibold text-foreground">
-                          {upgrade.oldTableCount} → {upgrade.newTableCount} tables
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          Amount: ₹{upgrade.amount}
-                        </p>
+                {cafe.tableUpgradePayments
+                  .sort((a, b) => (b.paidDate || 0) - (a.paidDate || 0))
+                  .slice(0, 3)
+                  .map((upgrade) => (
+                    <div key={upgrade.id} className="bg-white rounded-lg p-3 border border-blue-200">
+                      <div className="flex items-start justify-between mb-2">
+                        <div>
+                          <p className="text-sm font-semibold text-foreground">
+                            {upgrade.oldTableCount} → {upgrade.newTableCount} tables
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Amount: ₹{upgrade.amount}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {upgrade.status === 'pending' && (
+                            <>
+                              <div className="w-2 h-2 rounded-full bg-amber-600 animate-pulse"></div>
+                              <span className="text-xs font-medium text-amber-600">Pending</span>
+                            </>
+                          )}
+                          {upgrade.status === 'paid' && (
+                            <>
+                              <div className="w-2 h-2 rounded-full bg-green-600"></div>
+                              <span className="text-xs font-medium text-green-600">Approved</span>
+                            </>
+                          )}
+                          {upgrade.status === 'rejected' && (
+                            <>
+                              <div className="w-2 h-2 rounded-full bg-red-600"></div>
+                              <span className="text-xs font-medium text-red-600">Rejected</span>
+                            </>
+                          )}
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        {upgrade.status === 'pending' && (
-                          <>
-                            <div className="w-2 h-2 rounded-full bg-amber-600 animate-pulse"></div>
-                            <span className="text-xs font-medium text-amber-600">Pending</span>
-                          </>
-                        )}
-                        {upgrade.status === 'paid' && (
-                          <>
-                            <div className="w-2 h-2 rounded-full bg-green-600"></div>
-                            <span className="text-xs font-medium text-green-600">Approved</span>
-                          </>
-                        )}
-                        {upgrade.status === 'rejected' && (
-                          <>
-                            <div className="w-2 h-2 rounded-full bg-red-600"></div>
-                            <span className="text-xs font-medium text-red-600">Rejected</span>
-                          </>
-                        )}
-                      </div>
+
+                      {upgrade.status === 'pending' && (
+                        <p className="text-xs text-muted-foreground mt-2">
+                          Awaiting admin verification (up to 24 hours)
+                        </p>
+                      )}
+
+                      {upgrade.status === 'paid' && (
+                        <p className="text-xs text-green-700 mt-2">
+                          Your new tables have been added! Check QR Codes for new table codes.
+                        </p>
+                      )}
                     </div>
-
-                    {upgrade.status === 'pending' && (
-                      <p className="text-xs text-muted-foreground mt-2">
-                        Awaiting admin verification (up to 24 hours)
-                      </p>
-                    )}
-
-                    {upgrade.status === 'paid' && (
-                      <p className="text-xs text-green-700 mt-2">
-                        Your new tables have been added! Check QR Codes for new table codes.
-                      </p>
-                    )}
-                  </div>
-                ))}
+                  ))}
               </div>
             </div>
           </Card>

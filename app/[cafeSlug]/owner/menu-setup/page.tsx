@@ -6,7 +6,7 @@ import { auth } from '@/lib/firebase';
 import { getCafeBySlug, getMenuItems, createMenuItem, MenuItem, addCategory, getCafeCategories, Cafe } from '@/lib/db';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Loader2, Plus, ChevronLeft, AlertCircle } from 'lucide-react';
+import { Loader2, Plus, ChevronLeft, AlertCircle, X } from 'lucide-react';
 import { MenuManagement } from '@/components/MenuManagement';
 import SetupFeePaymentModal from '@/components/SetupFeePaymentModal';
 import Link from 'next/link';
@@ -29,6 +29,9 @@ export default function MenuSetupPage() {
     description: '',
     isAvailable: true,
   });
+  const [addOns, setAddOns] = useState<Array<{ id: string; name: string; price: string }>>([]);
+  const [newAddOn, setNewAddOn] = useState({ name: '', price: '' });
+  const [showAddOnInput, setShowAddOnInput] = useState(false);
 
   const cafeSlug = params.cafeSlug as string;
   const isSubscriptionActive = cafe?.setupFeeStatus === 'paid';
@@ -84,6 +87,21 @@ export default function MenuSetupPage() {
     }
   };
 
+  const handleAddAddOn = () => {
+    if (!newAddOn.name.trim() || !newAddOn.price) return;
+    
+    setAddOns([...addOns, {
+      id: Date.now().toString(),
+      name: newAddOn.name,
+      price: newAddOn.price,
+    }]);
+    setNewAddOn({ name: '', price: '' });
+  };
+
+  const handleRemoveAddOn = (id: string) => {
+    setAddOns(addOns.filter(addon => addon.id !== id));
+  };
+
   const handleAddMenuItem = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!cafe || !formData.category) return;
@@ -97,6 +115,11 @@ export default function MenuSetupPage() {
         description: formData.description,
         isAvailable: formData.isAvailable,
         image: '',
+        addOns: addOns.length > 0 ? addOns.map(addon => ({
+          id: addon.id,
+          name: addon.name,
+          price: parseFloat(addon.price),
+        })) : undefined,
         createdAt: Date.now(),
         updatedAt: Date.now(),
       };
@@ -111,6 +134,7 @@ export default function MenuSetupPage() {
         description: '',
         isAvailable: true,
       });
+      setAddOns([]);
       setShowAddForm(false);
     } catch (error) {
       console.error('[v0] Error adding menu item:', error);
@@ -312,13 +336,101 @@ export default function MenuSetupPage() {
                 />
               </div>
 
+              {/* Add-ons Section */}
+              <div className="border-t pt-4">
+                <h4 className="text-sm font-semibold text-foreground mb-3">Add-ons (Optional)</h4>
+                
+                {addOns.length > 0 && (
+                  <div className="mb-4 space-y-2">
+                    {addOns.map((addon) => (
+                      <div key={addon.id} className="flex items-center justify-between p-3 bg-primary/10 rounded-lg border border-primary/20">
+                        <div>
+                          <p className="font-medium text-foreground">{addon.name}</p>
+                          <p className="text-sm text-muted-foreground">+₹{addon.price}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveAddOn(addon.id)}
+                          className="p-1 text-destructive hover:bg-destructive/10 rounded transition-colors"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {!showAddOnInput ? (
+                  <Button
+                    type="button"
+                    onClick={() => setShowAddOnInput(true)}
+                    variant="outline"
+                    size="sm"
+                    className="flex items-center gap-2"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Add Option
+                  </Button>
+                ) : (
+                  <div className="space-y-2 p-3 border rounded-lg bg-card">
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-1">Option Name</label>
+                      <input
+                        type="text"
+                        value={newAddOn.name}
+                        onChange={(e) => setNewAddOn({ ...newAddOn, name: e.target.value })}
+                        placeholder="e.g., Extra Shot, Large Size"
+                        className="w-full px-3 py-2 border border-input rounded-lg bg-background text-foreground"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-1">Price (₹)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={newAddOn.price}
+                        onChange={(e) => setNewAddOn({ ...newAddOn, price: e.target.value })}
+                        placeholder="0.00"
+                        className="w-full px-3 py-2 border border-input rounded-lg bg-background text-foreground"
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        onClick={handleAddAddOn}
+                        size="sm"
+                        className="bg-primary text-primary-foreground"
+                      >
+                        Add
+                      </Button>
+                      <Button
+                        type="button"
+                        onClick={() => {
+                          setShowAddOnInput(false);
+                          setNewAddOn({ name: '', price: '' });
+                        }}
+                        size="sm"
+                        variant="outline"
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <div className="flex gap-2">
                 <Button type="submit" className="bg-primary text-primary-foreground">
                   Add Item
                 </Button>
                 <Button
                   type="button"
-                  onClick={() => setShowAddForm(false)}
+                  onClick={() => {
+                    setShowAddForm(false);
+                    setAddOns([]);
+                    setShowAddOnInput(false);
+                    setNewAddOn({ name: '', price: '' });
+                  }}
                   variant="outline"
                 >
                   Cancel

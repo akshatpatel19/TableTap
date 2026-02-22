@@ -208,12 +208,25 @@ export default function OrderConfirmationPage() {
           <h3 className="text-lg font-semibold text-foreground mb-4">Order Items</h3>
           <div className="space-y-3">
             {order.items.map((item, index) => (
-              <div key={index} className="flex justify-between py-3 border-b last:border-b-0">
-                <div>
-                  <p className="font-medium text-foreground">{item.name}</p>
-                  <p className="text-sm text-muted-foreground">Qty: {item.quantity}</p>
+              <div key={index} className="py-3 border-b last:border-b-0">
+                <div className="flex justify-between mb-2">
+                  <div>
+                    <p className="font-medium text-foreground">{item.name}</p>
+                    <p className="text-sm text-muted-foreground">Qty: {item.quantity}</p>
+                  </div>
+                  <span className="font-semibold">₹{(item.price * item.quantity).toFixed(2)}</span>
                 </div>
-                <span className="font-semibold">₹{(item.price * item.quantity).toFixed(2)}</span>
+                {item.addOns && item.addOns.length > 0 && (
+                  <div className="ml-4 text-xs space-y-1 text-muted-foreground">
+                    <p className="font-medium text-foreground">Price Breakdown:</p>
+                    <p>• Base Item: ₹{(item.basePrice * item.quantity).toFixed(2)}</p>
+                    <div>
+                      {item.addOns.map((addon) => (
+                        <p key={addon.id}>• {addon.name}: ₹{(addon.price * item.quantity).toFixed(2)}</p>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
           </div>

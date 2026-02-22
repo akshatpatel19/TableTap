@@ -119,11 +119,24 @@ export const StaffOrdersView: React.FC<StaffOrdersViewProps> = ({ orders, onRefr
       <div className="bg-card/50 rounded p-3 space-y-2">
         <p className="text-sm font-semibold text-foreground">Items:</p>
         {order.items.map((item, idx) => (
-          <div key={idx} className="text-sm flex justify-between text-muted-foreground">
-            <span>
-              {item.quantity}x {item.name}
-            </span>
-            <span className="text-foreground font-medium">₹{item.price * item.quantity}</span>
+          <div key={idx} className="text-sm space-y-1">
+            <div className="flex justify-between text-muted-foreground">
+              <span>
+                {item.quantity}x {item.name}
+              </span>
+              <span className="text-foreground font-medium">₹{(item.price * item.quantity).toFixed(2)}</span>
+            </div>
+            {item.addOns && item.addOns.length > 0 && (
+              <div className="ml-4 text-xs space-y-1 text-muted-foreground border-l-2 border-primary/30 pl-2">
+                <div className="font-medium text-foreground">Base: ₹{(item.basePrice).toFixed(2)}</div>
+                {item.addOns.map((addon) => (
+                  <div key={addon.id} className="text-muted-foreground">
+                    + {addon.name}: ₹{addon.price.toFixed(2)}
+                  </div>
+                ))}
+                {item.addOnsTotal && <div className="font-medium text-foreground">Add-ons Total: ₹{item.addOnsTotal.toFixed(2)}</div>}
+              </div>
+            )}
           </div>
         ))}
       </div>
@@ -135,19 +148,19 @@ export const StaffOrdersView: React.FC<StaffOrdersViewProps> = ({ orders, onRefr
 
       <div className="space-y-2 py-2 border-t">
         <div className="text-xs flex justify-between text-muted-foreground">
-          <span>Payment: </span>
+          <span>Payment ({order.paymentMethod}): </span>
           <span className={order.paymentStatus === 'paid' ? 'text-green-600 font-semibold' : 'text-yellow-600 font-semibold'}>
             {order.paymentStatus === 'paid' ? '✓ Received' : '⏳ Pending'}
           </span>
         </div>
-        {order.paymentMethod === 'online' && order.paymentStatus === 'pending' && (
+        {order.paymentStatus === 'pending' && (
           <Button
             onClick={() => handleMarkPaymentReceived(order.id)}
             disabled={loading}
             size="sm"
             className="w-full bg-green-600 hover:bg-green-700 text-white"
           >
-            Mark Payment Received
+            {order.paymentMethod === 'counter' ? 'Confirm Counter Payment' : 'Mark Payment Received'}
           </Button>
         )}
       </div>

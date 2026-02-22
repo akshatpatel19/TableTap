@@ -151,10 +151,18 @@ export default function TableUpgradeModal({
     }
   };
 
+  const handleClose = () => {
+    // Save current table count to localStorage when closing (dismissing)
+    if (step === 'confirmation') {
+      localStorage.setItem(`table_upgrade_dismissed_${cafe.id}`, cafe.tables.toString());
+    }
+    onClose();
+  };
+
   return (
     <Dialog open={open} onOpenChange={(newOpen) => {
       if (newOpen === false && step !== 'verification') {
-        onClose();
+        handleClose();
       }
     }}>
       <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
@@ -187,7 +195,7 @@ export default function TableUpgradeModal({
                       <span className="text-muted-foreground">{isDowngrade ? 'Tables to Remove:' : 'Tables to Add:'}</span>
                       <span className="font-semibold text-foreground">{Math.abs(tablesAdded)}</span>
                     </div>
-                    
+
                     {isUpgrade && (
                       <>
                         <div className="flex justify-between">
@@ -205,7 +213,7 @@ export default function TableUpgradeModal({
                         </div>
                       </>
                     )}
-                    
+
                     <div className={`border-t ${isDowngrade ? 'border-green-200' : 'border-blue-200'} pt-3 mt-3 flex justify-between`}>
                       <span className="text-foreground font-semibold">Total Amount:</span>
                       <span className={`font-bold ${isDowngrade ? 'text-green-600' : 'text-blue-600'}`}>₹{upgradeCost}</span>
@@ -226,7 +234,7 @@ export default function TableUpgradeModal({
               {error && <div className="p-3 bg-destructive/10 text-destructive text-sm rounded-lg">{error}</div>}
 
               <div className="flex gap-3">
-                <Button onClick={() => onClose()} variant="outline" className="flex-1">
+                <Button onClick={handleClose} variant="outline" className="flex-1">
                   Cancel
                 </Button>
                 {isDowngrade ? (
