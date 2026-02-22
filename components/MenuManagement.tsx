@@ -134,6 +134,18 @@ export const MenuManagement: React.FC<MenuManagementProps> = ({ items, onUpdate 
                     {item.description && (
                       <p className="text-sm text-muted-foreground line-clamp-2">{item.description}</p>
                     )}
+                    {item.addOns && item.addOns.length > 0 && (
+                      <div className="mt-3 pt-2 border-t">
+                        <p className="text-xs font-semibold text-foreground mb-2">Add-ons:</p>
+                        <div className="space-y-1">
+                          {item.addOns.map((addon) => (
+                            <div key={addon.id} className="text-xs text-muted-foreground">
+                              • {addon.name} (+₹{addon.price})
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                   <div className="flex items-center justify-between pt-3 border-t mb-3">
                     <span className="text-lg font-bold text-primary">₹{item.price}</span>

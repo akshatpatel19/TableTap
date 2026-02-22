@@ -83,6 +83,12 @@ export interface AdminSettings {
   updatedAt: number;
 }
 
+export interface AddOn {
+  id: string;
+  name: string;
+  price: number;
+}
+
 export interface MenuItem {
   id: string;
   cafeId: string;
@@ -92,6 +98,7 @@ export interface MenuItem {
   isAvailable: boolean;
   category: string;
   image?: string;
+  addOns?: AddOn[];
   createdAt: number;
   updatedAt: number;
 }

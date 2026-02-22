@@ -3,9 +3,9 @@
 import React, { useState, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { useOrder } from '@/lib/context/OrderContext';
-import { MenuItem, Discount } from '@/lib/db';
-import { Tag, Plus, Minus } from 'lucide-react';
+import { useOrder, SelectedAddOn } from '@/lib/context/OrderContext';
+import { MenuItem, Discount, AddOn } from '@/lib/db';
+import { Tag, Plus, Minus, X } from 'lucide-react';
 
 interface MenuCardProps {
   item: MenuItem;
@@ -15,12 +15,20 @@ interface MenuCardProps {
 export const MenuCard: React.FC<MenuCardProps> = ({ item, discounts = [] }) => {
   const { addToCart, cart, updateCartItemQuantity } = useOrder();
   const [isAdding, setIsAdding] = useState(false);
+  const [showAddOnsModal, setShowAddOnsModal] = useState(false);
+  const [selectedAddOns, setSelectedAddOns] = useState<SelectedAddOn[]>([]);
 
   // Get quantity of this item in cart
   const cartItem = cart.find(c => c.menuItemId === item.id);
   const quantityInCart = cartItem?.quantity || 0;
 
   const handleAddToCartNew = () => {
+    // If item has add-ons, show the modal
+    if (item.addOns && item.addOns.length > 0) {
+      setShowAddOnsModal(true);
+      return;
+    }
+    
     setIsAdding(true);
     addToCart({
       menuItemId: item.id,
@@ -29,6 +37,36 @@ export const MenuCard: React.FC<MenuCardProps> = ({ item, discounts = [] }) => {
       quantity: 1,
       description: item.description,
     });
+    setTimeout(() => setIsAdding(false), 300);
+  };
+
+  const toggleAddOn = (addOn: AddOn) => {
+    setSelectedAddOns((prev) => {
+      const exists = prev.find((a) => a.id === addOn.id);
+      if (exists) {
+        return prev.filter((a) => a.id !== addOn.id);
+      }
+      return [...prev, { id: addOn.id, name: addOn.name, price: addOn.price }];
+    });
+  };
+
+  const calculateAddOnsTotal = () => {
+    return selectedAddOns.reduce((sum, addon) => sum + addon.price, 0);
+  };
+
+  const handleAddToCartWithAddOns = () => {
+    setIsAdding(true);
+    const addOnsPrice = calculateAddOnsTotal();
+    addToCart({
+      menuItemId: item.id,
+      name: item.name,
+      price: discountedPrice + addOnsPrice,
+      quantity: 1,
+      description: item.description,
+      selectedAddOns: selectedAddOns.length > 0 ? selectedAddOns : undefined,
+    });
+    setSelectedAddOns([]);
+    setShowAddOnsModal(false);
     setTimeout(() => setIsAdding(false), 300);
   };
 
@@ -78,6 +116,79 @@ export const MenuCard: React.FC<MenuCardProps> = ({ item, discounts = [] }) => {
   }, [item, discounts]);
 
 
+
+  // Add-ons Modal
+  if (showAddOnsModal && item.addOns && item.addOns.length > 0) {
+    return (
+      <>
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end md:items-center justify-center md:p-4 p-0">
+          <Card className="w-full md:max-w-md p-6 rounded-b-none md:rounded-lg max-h-96 overflow-y-auto">
+            <h3 className="text-xl font-semibold text-foreground mb-2">Add-ons for {item.name}</h3>
+            <p className="text-sm text-muted-foreground mb-4">Select add-ons you want with this item</p>
+
+            <div className="space-y-3 mb-6">
+              {item.addOns.map((addOn) => (
+                <div
+                  key={addOn.id}
+                  onClick={() => toggleAddOn(addOn)}
+                  className={`p-4 border rounded-lg cursor-pointer transition-all ${
+                    selectedAddOns.find((a) => a.id === addOn.id)
+                      ? 'border-primary bg-primary/10'
+                      : 'border-input hover:border-primary'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3 flex-1">
+                      <div
+                        className={`w-5 h-5 border-2 rounded flex items-center justify-center transition-all ${
+                          selectedAddOns.find((a) => a.id === addOn.id)
+                            ? 'bg-primary border-primary'
+                            : 'border-input'
+                        }`}
+                      >
+                        {selectedAddOns.find((a) => a.id === addOn.id) && (
+                          <span className="text-white text-sm">✓</span>
+                        )}
+                      </div>
+                      <span className="font-medium text-foreground">{addOn.name}</span>
+                    </div>
+                    <span className="text-sm font-semibold text-primary">+₹{addOn.price}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {selectedAddOns.length > 0 && (
+              <div className="mb-6 p-4 bg-primary/10 border border-primary/20 rounded-lg">
+                <p className="text-sm text-muted-foreground mb-1">Add-ons Total:</p>
+                <p className="text-lg font-bold text-primary">₹{calculateAddOnsTotal()}</p>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Button
+                onClick={handleAddToCartWithAddOns}
+                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold"
+              >
+                Add to Cart - ₹{(discountedPrice + calculateAddOnsTotal()).toFixed(2)}
+              </Button>
+              <Button
+                onClick={() => {
+                  setShowAddOnsModal(false);
+                  setSelectedAddOns([]);
+                }}
+                variant="outline"
+                className="w-full"
+              >
+                Cancel
+              </Button>
+            </div>
+          </Card>
+        </div>
+        <Card className="overflow-hidden hover:shadow-lg transition-shadow h-full flex flex-col relative" />
+      </>
+    );
+  }
 
   return (
     <Card className="overflow-hidden hover:shadow-lg transition-shadow h-full flex flex-col relative">
@@ -139,7 +250,7 @@ export const MenuCard: React.FC<MenuCardProps> = ({ item, discounts = [] }) => {
               size="sm"
               className="bg-primary hover:bg-primary/90 text-primary-foreground"
             >
-              {isAdding ? 'Added' : 'Add'}
+              {isAdding ? 'Added' : item.addOns && item.addOns.length > 0 ? 'Options' : 'Add'}
             </Button>
           )}
         </div>

@@ -47,10 +47,17 @@ export const FloatingOrderCart: React.FC<FloatingOrderCartProps> = ({ cafeSlug }
           <h2 className="text-lg font-bold text-foreground">Order Summary</h2>
 
           <div className="space-y-3 max-h-64 overflow-y-auto">
-            {cart.map((item) => (
-              <div key={item.menuItemId} className="flex items-center justify-between p-3 bg-muted rounded-lg">
+            {cart.map((item) => {
+              const itemKey = `${item.menuItemId}-${item.selectedAddOns?.map(a => a.id).join('-') || 'none'}`;
+              return (
+              <div key={itemKey} className="flex items-center justify-between p-3 bg-muted rounded-lg">
                 <div className="flex-1">
                   <p className="font-medium text-foreground text-sm">{item.name}</p>
+                  {item.selectedAddOns && item.selectedAddOns.length > 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      Add-ons: {item.selectedAddOns.map(a => a.name).join(', ')}
+                    </p>
+                  )}
                   <p className="text-xs text-muted-foreground">₹{item.price} each</p>
                 </div>
 
