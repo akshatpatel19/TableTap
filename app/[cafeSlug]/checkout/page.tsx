@@ -123,21 +123,27 @@ export default function CheckoutPage() {
           const addOnsTotal = item.selectedAddOns?.reduce((sum, addon) => sum + addon.price, 0) || 0;
           const basePrice = item.price - addOnsTotal;
           
-          return {
+          const itemData: any = {
             menuItemId: item.menuItemId,
             name: item.name,
             quantity: item.quantity,
             basePrice: basePrice,
-            addOns: item.selectedAddOns || undefined,
-            addOnsTotal: addOnsTotal > 0 ? addOnsTotal : undefined,
             price: item.price,
           };
+          
+          // Only include addOns and addOnsTotal if they exist
+          if (item.selectedAddOns && item.selectedAddOns.length > 0) {
+            itemData.addOns = item.selectedAddOns;
+            itemData.addOnsTotal = addOnsTotal;
+          }
+          
+          return itemData;
         }),
         totalAmount,
         status: 'pending' as const,
         paymentStatus: 'pending' as 'pending' | 'paid' | 'failed',
         paymentMethod,
-        notes,
+        ...(notes && { notes }),
       };
 
       const order = await createOrder(orderData);
