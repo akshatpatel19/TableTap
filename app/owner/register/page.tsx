@@ -24,6 +24,7 @@ export default function RegisterPage() {
     confirmPassword: '',
     tables: 5,
   });
+  const [agreeToTerms, setAgreeToTerms] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -47,6 +48,12 @@ export default function RegisterPage() {
       // Validate inputs
       if (!formData.cafeName || !formData.email || !formData.phone || !formData.address) {
         setError('Please fill in all fields');
+        setLoading(false);
+        return;
+      }
+
+      if (!agreeToTerms) {
+        setError('You must agree to the Terms and Conditions and Privacy Policy');
         setLoading(false);
         return;
       }
@@ -243,6 +250,27 @@ export default function RegisterPage() {
               required
               disabled={loading}
             />
+          </div>
+
+          <div className="flex items-start gap-3">
+            <input
+              type="checkbox"
+              id="terms"
+              checked={agreeToTerms}
+              onChange={(e) => setAgreeToTerms(e.target.checked)}
+              className="mt-1 h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
+              disabled={loading}
+            />
+            <label htmlFor="terms" className="text-sm text-muted-foreground">
+              I agree to the{' '}
+              <Link href="/terms-and-conditions" target="_blank" className="text-primary hover:underline font-semibold">
+                Terms and Conditions
+              </Link>
+              {' '}and{' '}
+              <Link href="/privacy-policy" target="_blank" className="text-primary hover:underline font-semibold">
+                Privacy Policy
+              </Link>
+            </label>
           </div>
 
           {error && <div className="p-3 bg-destructive/10 text-destructive rounded-lg text-sm">{error}</div>}

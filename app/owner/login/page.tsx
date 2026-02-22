@@ -4,7 +4,7 @@ import React from "react"
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { signInWithEmailAndPassword } from 'firebase/auth';
+import { signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { getCafeByEmail } from '@/lib/db';
 import { Button } from '@/components/ui/button';
@@ -18,6 +18,10 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetSuccess, setResetSuccess] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -56,6 +60,101 @@ export default function LoginPage() {
       setLoading(false);
     }
   };
+
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setResetLoading(true);
+    setError(null);
+    setResetSuccess(false);
+
+    try {
+      if (!resetEmail) {
+        setError('Please enter your email address');
+        setResetLoading(false);
+        return;
+      }
+
+      await sendPasswordResetEmail(auth, resetEmail);
+      setResetSuccess(true);
+      setResetEmail('');
+      // Auto close after 3 seconds
+      setTimeout(() => {
+        setShowForgotPassword(false);
+        setResetSuccess(false);
+      }, 3000);
+    } catch (err: any) {
+      console.error('[v0] Password reset error:', err);
+      if (err.code === 'auth/user-not-found') {
+        setError('No account found with this email address');
+      } else {
+        setError(err.message || 'Failed to send reset email. Please try again.');
+      }
+    } finally {
+      setResetLoading(false);
+    }
+  };
+
+  if (showForgotPassword) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-primary/5 to-accent/5 flex items-center justify-center p-4">
+        <Card className="w-full max-w-md p-8">
+          <h1 className="text-3xl font-bold text-foreground mb-2 text-center">Reset Password</h1>
+          <p className="text-center text-muted-foreground mb-8">Enter your email to receive a password reset link</p>
+
+          <form onSubmit={handleForgotPassword} className="space-y-6">
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-2">Email Address</label>
+              <input
+                type="email"
+                value={resetEmail}
+                onChange={(e) => setResetEmail(e.target.value)}
+                placeholder="your@email.com"
+                className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 bg-background text-foreground"
+                required
+                disabled={resetLoading}
+              />
+            </div>
+
+            {error && <div className="p-3 bg-destructive/10 text-destructive rounded-lg text-sm">{error}</div>}
+
+            {resetSuccess && (
+              <div className="p-3 bg-green-50 border border-green-200 text-green-700 rounded-lg text-sm">
+                Password reset email sent! Check your inbox and follow the link to reset your password.
+              </div>
+            )}
+
+            <Button
+              type="submit"
+              className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-2 h-auto"
+              disabled={resetLoading}
+            >
+              {resetLoading ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Sending...
+                </>
+              ) : (
+                'Send Reset Link'
+              )}
+            </Button>
+
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              onClick={() => {
+                setShowForgotPassword(false);
+                setError(null);
+                setResetEmail('');
+              }}
+            >
+              Back to Login
+            </Button>
+          </form>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/5 to-accent/5 flex items-center justify-center p-4">
@@ -106,6 +205,14 @@ export default function LoginPage() {
               'Login'
             )}
           </Button>
+
+          <button
+            type="button"
+            onClick={() => setShowForgotPassword(true)}
+            className="w-full text-center text-sm text-primary hover:underline font-semibold"
+          >
+            Forgot Password?
+          </button>
 
           <p className="text-center text-sm text-muted-foreground mt-6">
             Don&apos;t have an account?{' '}
