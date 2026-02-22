@@ -428,6 +428,8 @@ export default function MenuSetupPage() {
                   onClick={() => {
                     setShowAddForm(false);
                     setAddOns([]);
+                    setShowAddOnInput(false);
+                    setNewAddOn({ name: '', price: '' });
                   }}
                   variant="outline"
                 >

@@ -50,7 +50,7 @@ export const FloatingOrderCart: React.FC<FloatingOrderCartProps> = ({ cafeSlug }
             {cart.map((item) => {
               const itemKey = `${item.menuItemId}-${item.selectedAddOns?.map(a => a.id).join('-') || 'none'}`;
               return (
-              <div key={itemKey} className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                <div key={itemKey} className="flex items-center justify-between p-3 bg-muted rounded-lg">
                 <div className="flex-1">
                   <p className="font-medium text-foreground text-sm">{item.name}</p>
                   {item.selectedAddOns && item.selectedAddOns.length > 0 && (
@@ -92,31 +92,8 @@ export const FloatingOrderCart: React.FC<FloatingOrderCartProps> = ({ cafeSlug }
                   </Button>
                 </div>
               </div>
-            ))}
-          </div>
-
-          <div className="space-y-2 pt-4 border-t">
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Subtotal:</span>
-              <span className="font-semibold">₹{getTotalPrice().toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Items:</span>
-              <span className="font-semibold">{getTotalItems()}</span>
-            </div>
-            <div className="flex justify-between text-lg font-bold pt-2 border-t">
-              <span>Total:</span>
-              <span className="text-primary">₹{getTotalPrice().toFixed(2)}</span>
-            </div>
-          </div>
-
-          <Link href={`/${cafeSlug}/checkout?table=${tableId}`} className="block">
-            <Button className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-2 h-auto">
-              Proceed to Checkout
-            </Button>
-          </Link>
-        </Card>
-      )}
+              );
+            })}
     </div>
   );
 };

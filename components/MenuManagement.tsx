@@ -1,11 +1,11 @@
 'use client';
 
 import React, { useState } from 'react';
-import { MenuItem, updateMenuItem, deleteMenuItem } from '@/lib/db';
+import { MenuItem, updateMenuItem, deleteMenuItem, AddOn } from '@/lib/db';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Trash2, Edit2 } from 'lucide-react';
+import { Trash2, Edit2, X, Plus } from 'lucide-react';
 
 interface MenuManagementProps {
   items: MenuItem[];
@@ -15,21 +15,54 @@ interface MenuManagementProps {
 export const MenuManagement: React.FC<MenuManagementProps> = ({ items, onUpdate }) => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editData, setEditData] = useState<Partial<MenuItem>>({});
+  const [editAddOns, setEditAddOns] = useState<Array<AddOn & { isAvailable?: boolean }>>([]);
+  const [newAddOn, setNewAddOn] = useState({ name: '', price: '' });
+  const [showAddOnInput, setShowAddOnInput] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const handleEditStart = (item: MenuItem) => {
     setEditingId(item.id);
     setEditData(item);
+    setEditAddOns(item.addOns || []);
+    setShowAddOnInput(false);
+    setNewAddOn({ name: '', price: '' });
+  };
+
+  const handleAddAddOn = () => {
+    if (!newAddOn.name.trim() || !newAddOn.price) return;
+    
+    setEditAddOns([...editAddOns, {
+      id: Date.now().toString(),
+      name: newAddOn.name,
+      price: parseFloat(newAddOn.price),
+      isAvailable: true,
+    }]);
+    setNewAddOn({ name: '', price: '' });
+  };
+
+  const handleRemoveAddOn = (id: string) => {
+    setEditAddOns(editAddOns.filter(addon => addon.id !== id));
+  };
+
+  const toggleAddOnAvailability = (id: string) => {
+    setEditAddOns(editAddOns.map(addon =>
+      addon.id === id ? { ...addon, isAvailable: !addon.isAvailable } : addon
+    ));
   };
 
   const handleEditSave = async (id: string) => {
     setLoading(true);
     try {
+      // Filter out isAvailable property from add-ons before saving
+      const addOnsToSave = editAddOns.map(({ isAvailable, ...addon }) => addon);
+      
       await updateMenuItem(id, {
         ...editData,
+        addOns: addOnsToSave.length > 0 ? addOnsToSave : undefined,
         updatedAt: Date.now(),
       });
       setEditingId(null);
+      setEditAddOns([]);
       await onUpdate();
     } catch (error) {
       console.error('[v0] Error updating menu item:', error);
@@ -102,6 +135,101 @@ export const MenuManagement: React.FC<MenuManagementProps> = ({ items, onUpdate 
                     />
                     <label className="text-sm font-medium text-foreground">Available</label>
                   </div>
+
+                  {/* Add-ons Edit Section */}
+                  <div className="border-t pt-4">
+                    <h4 className="text-sm font-semibold text-foreground mb-3">Add-ons</h4>
+                    
+                    {editAddOns.length > 0 && (
+                      <div className="mb-4 space-y-2">
+                        {editAddOns.map((addon) => (
+                          <div key={addon.id} className="flex items-center justify-between p-2 bg-primary/10 rounded border border-primary/20">
+                            <div className="flex-1">
+                              <p className="text-xs font-medium text-foreground">{addon.name}</p>
+                              <p className="text-xs text-muted-foreground">₹{addon.price}</p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                checked={addon.isAvailable ?? true}
+                                onChange={() => toggleAddOnAvailability(addon.id)}
+                                disabled={loading}
+                                className="w-4 h-4"
+                                title="Toggle availability"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveAddOn(addon.id)}
+                                disabled={loading}
+                                className="p-1 text-destructive hover:bg-destructive/10 rounded transition-colors"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {!showAddOnInput ? (
+                      <Button
+                        type="button"
+                        onClick={() => setShowAddOnInput(true)}
+                        variant="outline"
+                        size="sm"
+                        className="flex items-center gap-2 text-xs"
+                        disabled={loading}
+                      >
+                        <Plus className="h-3 w-3" />
+                        Add Option
+                      </Button>
+                    ) : (
+                      <div className="space-y-2 p-2 border rounded bg-card">
+                        <input
+                          type="text"
+                          value={newAddOn.name}
+                          onChange={(e) => setNewAddOn({ ...newAddOn, name: e.target.value })}
+                          placeholder="Option name"
+                          className="w-full px-2 py-1 border rounded text-foreground bg-background text-xs"
+                          disabled={loading}
+                        />
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={newAddOn.price}
+                          onChange={(e) => setNewAddOn({ ...newAddOn, price: e.target.value })}
+                          placeholder="Price"
+                          className="w-full px-2 py-1 border rounded text-foreground bg-background text-xs"
+                          disabled={loading}
+                        />
+                        <div className="flex gap-2">
+                          <Button
+                            type="button"
+                            onClick={handleAddAddOn}
+                            size="sm"
+                            className="flex-1 bg-primary text-primary-foreground text-xs h-8"
+                            disabled={loading}
+                          >
+                            Add
+                          </Button>
+                          <Button
+                            type="button"
+                            onClick={() => {
+                              setShowAddOnInput(false);
+                              setNewAddOn({ name: '', price: '' });
+                            }}
+                            size="sm"
+                            variant="outline"
+                            className="flex-1 text-xs h-8"
+                            disabled={loading}
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
                   <div className="flex gap-2">
                     <Button
                       onClick={() => handleEditSave(item.id)}
@@ -112,7 +240,12 @@ export const MenuManagement: React.FC<MenuManagementProps> = ({ items, onUpdate 
                       Save
                     </Button>
                     <Button
-                      onClick={() => setEditingId(null)}
+                      onClick={() => {
+                        setEditingId(null);
+                        setEditAddOns([]);
+                        setShowAddOnInput(false);
+                        setNewAddOn({ name: '', price: '' });
+                      }}
                       disabled={loading}
                       size="sm"
                       variant="outline"
