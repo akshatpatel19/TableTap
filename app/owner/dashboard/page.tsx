@@ -99,7 +99,7 @@ export default function OwnerDashboard() {
 
         const ordersData = await getOrders(cafeData.id);
         setAllOrders(ordersData);
-        setOrders(ordersData.slice(0, 10));
+        setOrders(ordersData.slice(0, 5));
 
 
 
@@ -590,11 +590,11 @@ export default function OwnerDashboard() {
             </Card>
           </Link>
 
-          <Link href={`/${cafe.slug}/owner/settings`} className="block">
+          <Link href="/owner/orders" className="block">
             <Card className="p-6 cursor-pointer hover:shadow-lg transition-shadow h-full">
-              <Settings className="h-8 w-8 text-primary mb-3" />
-              <h3 className="font-semibold text-foreground mb-1">Settings</h3>
-              <p className="text-sm text-muted-foreground">Cafe settings</p>
+              <FileText className="h-8 w-8 text-primary mb-3" />
+              <h3 className="font-semibold text-foreground mb-1">Orders</h3>
+              <p className="text-sm text-muted-foreground">Order history</p>
             </Card>
           </Link>
 
@@ -611,6 +611,14 @@ export default function OwnerDashboard() {
               <TrendingUp className="h-8 w-8 text-primary mb-3" />
               <h3 className="font-semibold text-foreground mb-1">Analytics</h3>
               <p className="text-sm text-muted-foreground">Sales & performance data</p>
+            </Card>
+          </Link>
+
+          <Link href={`/${cafe.slug}/owner/settings`} className="block">
+            <Card className="p-6 cursor-pointer hover:shadow-lg transition-shadow h-full">
+              <Settings className="h-8 w-8 text-primary mb-3" />
+              <h3 className="font-semibold text-foreground mb-1">Settings</h3>
+              <p className="text-sm text-muted-foreground">Cafe settings</p>
             </Card>
           </Link>
         </div>
@@ -659,57 +667,7 @@ export default function OwnerDashboard() {
           </Card>
         )}
 
-        {/* Past Orders with Date Filter */}
-        {allOrders.length > 0 && (
-          <Card className="p-6 mb-8">
-            <h3 className="text-lg font-semibold text-foreground mb-4">Order History</h3>
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-foreground mb-2">Filter by Month</label>
-              <input
-                type="month"
-                value={selectedMonth}
-                onChange={(e) => setSelectedMonth(e.target.value)}
-                className="px-3 py-2 border border-input rounded-lg bg-background text-foreground w-full max-w-xs"
-              />
-            </div>
-            <div className="space-y-3">
-              {allOrders
-                .filter((order) => {
-                  const orderDate = new Date(order.createdAt).toISOString().slice(0, 7);
-                  return orderDate === selectedMonth;
-                })
-                .sort((a, b) => b.createdAt - a.createdAt)
-                .map((order) => (
-                  <div key={order.id} className="flex items-start justify-between p-3 border rounded-lg text-sm hover:bg-card/50 transition-colors">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <p className="font-medium text-foreground">Order #{order.id.slice(0, 8)}</p>
-                        <Badge
-                          className={
-                            order.status === 'served'
-                              ? 'bg-green-100 text-green-800'
-                              : order.status === 'cancelled'
-                                ? 'bg-red-100 text-red-800'
-                                : 'bg-blue-100 text-blue-800'
-                          }
-                          variant="outline"
-                        >
-                          {order.status}
-                        </Badge>
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        Table {order.tableId} • {order.items.length} items • ₹{order.totalAmount} • {new Date(order.createdAt).toLocaleDateString()} {new Date(order.createdAt).toLocaleTimeString()}
-                      </p>
-                    </div>
-                  </div>
-                ))
-                .slice(0, 20)}
-            </div>
-            {allOrders.filter((o) => new Date(o.createdAt).toISOString().slice(0, 7) === selectedMonth).length === 0 && (
-              <p className="text-center text-sm text-muted-foreground py-4">No orders in this month</p>
-            )}
-          </Card>
-        )}
+
 
         {/* Subscription Details Section */}
         {cafe && (

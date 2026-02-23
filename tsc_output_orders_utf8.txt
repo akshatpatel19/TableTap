@@ -1,0 +1,2 @@
+﻿app/owner/orders/page.tsx(98,21): error TS2367: This comparison appears to be unintentional because the types '"online" | "counter"' and '"upi"' have no overlap.
+app/owner/orders/page.tsx(100,28): error TS2367: This comparison appears to be unintentional because the types '"online" | "counter"' and '"cash"' have no overlap.
