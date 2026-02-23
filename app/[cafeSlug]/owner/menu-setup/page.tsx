@@ -22,12 +22,20 @@ export default function MenuSetupPage() {
   const [showAddCategory, setShowAddCategory] = useState(false);
   const [newCategory, setNewCategory] = useState('');
   const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    name: string;
+    category: string;
+    price: string;
+    description: string;
+    isAvailable: boolean;
+    foodType: 'vegetarian' | 'non-vegetarian' | 'eggitarian';
+  }>({
     name: '',
     category: '',
     price: '',
     description: '',
     isAvailable: true,
+    foodType: 'vegetarian',
   });
   const [addOns, setAddOns] = useState<Array<{ id: string; name: string; price: string }>>([]);
   const [newAddOn, setNewAddOn] = useState({ name: '', price: '' });
@@ -114,6 +122,7 @@ export default function MenuSetupPage() {
         price: parseFloat(formData.price),
         description: formData.description,
         isAvailable: formData.isAvailable,
+        foodType: formData.foodType,
         image: '',
         ...(addOns.length > 0 && {
           addOns: addOns.map(addon => ({
@@ -135,6 +144,7 @@ export default function MenuSetupPage() {
         price: '',
         description: '',
         isAvailable: true,
+        foodType: 'vegetarian',
       });
       setAddOns([]);
       setShowAddForm(false);
@@ -325,6 +335,19 @@ export default function MenuSetupPage() {
                     <option value="false">Out of Stock</option>
                   </select>
                 </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-1">Food Type</label>
+                  <select
+                    value={formData.foodType}
+                    onChange={(e) => setFormData({ ...formData, foodType: e.target.value as any })}
+                    className="w-full px-3 py-2 border border-input rounded-lg bg-background text-foreground"
+                  >
+                    <option value="vegetarian">Vegetarian</option>
+                    <option value="non-vegetarian">Non-Vegetarian</option>
+                    <option value="eggitarian">Eggitarian</option>
+                  </select>
+                </div>
               </div>
 
               <div>
@@ -446,7 +469,7 @@ export default function MenuSetupPage() {
         {menuItems.length > 0 ? (
           <Card className="p-6">
             <h3 className="text-lg font-semibold text-foreground mb-4">Your Menu Items</h3>
-            <MenuManagement items={menuItems} onUpdate={handleRefresh} />
+            <MenuManagement items={menuItems} categories={categories} onUpdate={handleRefresh} />
           </Card>
         ) : (
           <Card className="p-12 text-center">

@@ -18,17 +18,20 @@ export const MenuCard: React.FC<MenuCardProps> = ({ item, discounts = [] }) => {
   const [showAddOnsModal, setShowAddOnsModal] = useState(false);
   const [selectedAddOns, setSelectedAddOns] = useState<SelectedAddOn[]>([]);
 
+  // Get available add-ons
+  const availableAddOns = item.addOns?.filter(a => a.isAvailable !== false) || [];
+
   // Get quantity of this item in cart
   const cartItem = cart.find(c => c.menuItemId === item.id);
   const quantityInCart = cartItem?.quantity || 0;
 
   const handleAddToCartNew = () => {
     // If item has add-ons, show the modal
-    if (item.addOns && item.addOns.length > 0) {
+    if (availableAddOns.length > 0) {
       setShowAddOnsModal(true);
       return;
     }
-    
+
     setIsAdding(true);
     addToCart({
       menuItemId: item.id,
@@ -118,7 +121,7 @@ export const MenuCard: React.FC<MenuCardProps> = ({ item, discounts = [] }) => {
 
 
   // Add-ons Modal
-  if (showAddOnsModal && item.addOns && item.addOns.length > 0) {
+  if (showAddOnsModal && availableAddOns.length > 0) {
     return (
       <>
         <div className="fixed inset-0 bg-black/50 z-50 flex items-end md:items-center justify-center md:p-4 p-0">
@@ -127,24 +130,22 @@ export const MenuCard: React.FC<MenuCardProps> = ({ item, discounts = [] }) => {
             <p className="text-sm text-muted-foreground mb-4">Select add-ons you want with this item</p>
 
             <div className="space-y-3 mb-6">
-              {item.addOns.map((addOn) => (
+              {availableAddOns.map((addOn) => (
                 <div
                   key={addOn.id}
                   onClick={() => toggleAddOn(addOn)}
-                  className={`p-4 border rounded-lg cursor-pointer transition-all ${
-                    selectedAddOns.find((a) => a.id === addOn.id)
-                      ? 'border-primary bg-primary/10'
-                      : 'border-input hover:border-primary'
-                  }`}
+                  className={`p-4 border rounded-lg cursor-pointer transition-all ${selectedAddOns.find((a) => a.id === addOn.id)
+                    ? 'border-primary bg-primary/10'
+                    : 'border-input hover:border-primary'
+                    }`}
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3 flex-1">
                       <div
-                        className={`w-5 h-5 border-2 rounded flex items-center justify-center transition-all ${
-                          selectedAddOns.find((a) => a.id === addOn.id)
-                            ? 'bg-primary border-primary'
-                            : 'border-input'
-                        }`}
+                        className={`w-5 h-5 border-2 rounded flex items-center justify-center transition-all ${selectedAddOns.find((a) => a.id === addOn.id)
+                          ? 'bg-primary border-primary'
+                          : 'border-input'
+                          }`}
                       >
                         {selectedAddOns.find((a) => a.id === addOn.id) && (
                           <span className="text-white text-sm">✓</span>
@@ -202,9 +203,26 @@ export const MenuCard: React.FC<MenuCardProps> = ({ item, discounts = [] }) => {
           />
         </div>
       )}
-      <div className="flex-1 p-4 flex flex-col">
-        <div className="mb-3">
-          <h3 className="font-semibold text-foreground mb-1 line-clamp-2">{item.name}</h3>
+      <div className="flex-1 px-4 py-0 flex flex-col justify-center">
+        <div className="mb-2">
+          <div className="flex items-start justify-between gap-2 mb-1">
+            <h3 className="font-semibold text-foreground line-clamp-2">{item.name}</h3>
+            {(!item.foodType || item.foodType === 'vegetarian') && (
+              <div className="w-4 h-4 rounded-sm border-2 border-green-600 flex items-center justify-center flex-shrink-0 mt-0.5" title="Vegetarian">
+                <div className="w-2 h-2 rounded-full bg-green-600"></div>
+              </div>
+            )}
+            {item.foodType === 'non-vegetarian' && (
+              <div className="w-4 h-4 rounded-sm border-2 border-red-600 flex items-center justify-center flex-shrink-0 mt-0.5" title="Non-Vegetarian">
+                <div className="w-2 h-2 rounded-full bg-red-600"></div>
+              </div>
+            )}
+            {item.foodType === 'eggitarian' && (
+              <div className="w-4 h-4 rounded-sm border-2 border-orange-500 flex items-center justify-center flex-shrink-0 mt-0.5" title="Eggitarian">
+                <div className="w-0 h-0 border-l-[4px] border-r-[4px] border-b-[6px] border-l-transparent border-r-transparent border-b-orange-500 mt-[1px]"></div>
+              </div>
+            )}
+          </div>
           <p className="text-sm text-muted-foreground line-clamp-2">{item.description}</p>
           <p className="text-xs text-muted-foreground mt-1">{item.category}</p>
         </div>
@@ -250,7 +268,7 @@ export const MenuCard: React.FC<MenuCardProps> = ({ item, discounts = [] }) => {
               size="sm"
               className="bg-primary hover:bg-primary/90 text-primary-foreground"
             >
-              {isAdding ? 'Added' : item.addOns && item.addOns.length > 0 ? 'Options' : 'Add'}
+              {isAdding ? 'Added' : availableAddOns.length > 0 ? 'Options' : 'Add'}
             </Button>
           )}
         </div>

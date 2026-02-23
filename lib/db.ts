@@ -87,6 +87,7 @@ export interface AddOn {
   id: string;
   name: string;
   price: number;
+  isAvailable?: boolean;
 }
 
 export interface MenuItem {
@@ -97,6 +98,7 @@ export interface MenuItem {
   price: number;
   isAvailable: boolean;
   category: string;
+  foodType: 'vegetarian' | 'non-vegetarian' | 'eggitarian';
   image?: string;
   addOns?: AddOn[];
   createdAt: number;
@@ -812,7 +814,7 @@ export function subscribeToCafeByEmail(email: string, callback: (cafe: Cafe | nu
 export function subscribeToAllCafes(callback: (cafes: Cafe[]) => void) {
   const cafesRef = collection(db, 'cafes');
   return onSnapshot(cafesRef, (querySnapshot) => {
-    const cafes = querySnapshot.docs.map((docSnap) => ({ id: docSnap.id, ...(docSnap.data() as Cafe) } as Cafe));
+    const cafes = querySnapshot.docs.map((docSnap) => ({ ...(docSnap.data() as Cafe), id: docSnap.id }));
     callback(cafes);
   });
 }
@@ -899,17 +901,17 @@ export const deleteAdminPopup = async (popupId: string) => {
 
 export const getCafePopups = async (cafeId: string): Promise<AdminPopup[]> => {
   const allPopups = await getAllAdminPopups();
-  const filteredByTarget = allPopups.filter(popup => 
+  const filteredByTarget = allPopups.filter(popup =>
     popup.targetCafes === 'all' || (popup.cafeIds && popup.cafeIds.includes(cafeId))
   );
-  
+
   // Filter out popups where cafe has already agreed or dismissed
   const q = query(collection(db, 'cafe_popups'), where('cafeId', '==', cafeId));
   const querySnapshot = await getDocs(q);
   const cafeResponses = querySnapshot.docs.map(doc => doc.data() as CafePopup);
-  
+
   // Only return popups that the cafe hasn't agreed to yet
-  return filteredByTarget.filter(popup => 
+  return filteredByTarget.filter(popup =>
     !cafeResponses.find(response => response.popupId === popup.id && response.agreedToTerms === true)
   );
 };

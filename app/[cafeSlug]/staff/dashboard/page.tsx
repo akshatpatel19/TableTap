@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { getCafeBySlug, getCafeOrders, getMenuItems, Order, MenuItem, Cafe } from '@/lib/db';
+import { getCafeBySlug, getCafeOrders, getMenuItems, Order, MenuItem, Cafe, getCafeCategories } from '@/lib/db';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Loader2, LogOut, Settings, RefreshCw, FileText, Download } from 'lucide-react';
@@ -15,6 +15,7 @@ export default function StaffDashboard() {
   const [cafe, setCafe] = useState<Cafe | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
+  const [categories, setCategories] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'orders' | 'menu'>('orders');
   const [refreshing, setRefreshing] = useState(false);
@@ -30,13 +31,15 @@ export default function StaffDashboard() {
       }
 
       setCafe(cafeData);
-      const [ordersData, menuData] = await Promise.all([
+      const [ordersData, menuData, categoriesData] = await Promise.all([
         getCafeOrders(cafeData.id),
         getMenuItems(cafeData.id),
+        getCafeCategories(cafeData.id),
       ]);
 
       setOrders(ordersData.sort((a, b) => b.createdAt - a.createdAt));
       setMenuItems(menuData);
+      setCategories(categoriesData);
     } catch (error) {
       console.error('[v0] Error loading dashboard data:', error);
     } finally {
@@ -155,7 +158,7 @@ export default function StaffDashboard() {
         {/* Tab Content */}
         {activeTab === 'orders' && <StaffOrdersView orders={orders} onRefresh={handleRefresh} />}
 
-        {activeTab === 'menu' && <MenuManagement items={menuItems} onUpdate={handleRefresh} />}
+        {activeTab === 'menu' && <MenuManagement items={menuItems} categories={categories} onUpdate={handleRefresh} />}
       </div>
     </div>
   );

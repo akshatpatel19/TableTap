@@ -9,10 +9,11 @@ import { Trash2, Edit2, X, Plus } from 'lucide-react';
 
 interface MenuManagementProps {
   items: MenuItem[];
+  categories: string[];
   onUpdate: () => Promise<void>;
 }
 
-export const MenuManagement: React.FC<MenuManagementProps> = ({ items, onUpdate }) => {
+export const MenuManagement: React.FC<MenuManagementProps> = ({ items, categories, onUpdate }) => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editData, setEditData] = useState<Partial<MenuItem>>({});
   const [editAddOns, setEditAddOns] = useState<Array<AddOn & { isAvailable?: boolean }>>([]);
@@ -53,8 +54,13 @@ export const MenuManagement: React.FC<MenuManagementProps> = ({ items, onUpdate 
   const handleEditSave = async (id: string) => {
     setLoading(true);
     try {
-      // Filter out isAvailable property from add-ons before saving
-      const addOnsToSave = editAddOns.map(({ isAvailable, ...addon }) => addon);
+      // Keep isAvailable property for add-ons
+      const addOnsToSave = editAddOns.map((addon) => ({
+        id: addon.id,
+        name: addon.name,
+        price: addon.price,
+        isAvailable: addon.isAvailable ?? true
+      }));
 
       await updateMenuItem(id, {
         ...editData,
@@ -123,6 +129,44 @@ export const MenuManagement: React.FC<MenuManagementProps> = ({ items, onUpdate 
                       onChange={(e) => setEditData({ ...editData, price: parseFloat(e.target.value) })}
                       className="w-full px-3 py-2 border rounded text-foreground bg-background text-sm"
                       disabled={loading}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-foreground mb-2 block">Category</label>
+                    <select
+                      value={editData.category || ''}
+                      onChange={(e) => setEditData({ ...editData, category: e.target.value })}
+                      className="w-full px-3 py-2 border rounded text-foreground bg-background text-sm"
+                      disabled={loading}
+                    >
+                      {categories.map((cat) => (
+                        <option key={cat} value={cat}>
+                          {cat}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-foreground mb-2 block">Food Type</label>
+                    <select
+                      value={editData.foodType || 'vegetarian'}
+                      onChange={(e) => setEditData({ ...editData, foodType: e.target.value as any })}
+                      className="w-full px-3 py-2 border rounded text-foreground bg-background text-sm"
+                      disabled={loading}
+                    >
+                      <option value="vegetarian">Vegetarian</option>
+                      <option value="non-vegetarian">Non-Vegetarian</option>
+                      <option value="eggitarian">Eggitarian</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-foreground mb-2 block">Description</label>
+                    <textarea
+                      value={editData.description || ''}
+                      onChange={(e) => setEditData({ ...editData, description: e.target.value })}
+                      className="w-full px-3 py-2 border rounded text-foreground bg-background text-sm"
+                      disabled={loading}
+                      rows={2}
                     />
                   </div>
                   <div className="flex items-center gap-2">

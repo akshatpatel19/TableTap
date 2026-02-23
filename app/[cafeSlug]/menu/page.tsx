@@ -15,6 +15,7 @@ export default function MenuPage() {
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [discounts, setDiscounts] = useState<Discount[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [showVegOnly, setShowVegOnly] = useState<boolean>(false);
   const [loading, setLoading] = useState(true);
   const [maintenance, setMaintenance] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -62,7 +63,7 @@ export default function MenuPage() {
         if (items.length > 0) {
           const categories = Array.from(new Set(items.map((i) => i.category)));
           if (categories.length > 0) {
-            setSelectedCategory(categories[0]);
+            setSelectedCategory('all');
           }
         }
       } catch (err) {
@@ -118,8 +119,12 @@ export default function MenuPage() {
   }
 
   const categories = Array.from(new Set(menuItems.map((i) => i.category)));
-  const filteredItems =
+  let filteredItems =
     selectedCategory === 'all' ? menuItems : menuItems.filter((i) => i.category === selectedCategory);
+
+  if (showVegOnly) {
+    filteredItems = filteredItems.filter((i) => i.foodType === 'vegetarian' || !i.foodType);
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -140,6 +145,22 @@ export default function MenuPage() {
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
           {/* Menu Items */}
           <div className="lg:col-span-3">
+            {/* Dietary Preference Filter */}
+            <div className="mb-6 flex items-center justify-between bg-card p-4 rounded-lg border shadow-sm">
+              <div>
+                <h2 className="text-base font-semibold text-foreground">Vegetarian Only</h2>
+                <p className="text-xs text-muted-foreground">Show only vegetarian items</p>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="sr-only peer"
+                  checked={showVegOnly}
+                  onChange={(e) => setShowVegOnly(e.target.checked)}
+                />
+                <div className="w-11 h-6 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-500"></div>
+              </label>
+            </div>
             {/* Category Filter */}
             {categories.length > 1 && (
               <div className="mb-8">
@@ -148,8 +169,8 @@ export default function MenuPage() {
                   <button
                     onClick={() => setSelectedCategory('all')}
                     className={`px-4 py-2 rounded-lg font-medium transition-colors ${selectedCategory === 'all'
-                        ? 'bg-primary text-primary-foreground'
-                        : 'bg-card text-foreground border hover:border-primary'
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-card text-foreground border hover:border-primary'
                       }`}
                   >
                     All
@@ -159,8 +180,8 @@ export default function MenuPage() {
                       key={category}
                       onClick={() => setSelectedCategory(category)}
                       className={`px-4 py-2 rounded-lg font-medium transition-colors ${selectedCategory === category
-                          ? 'bg-primary text-primary-foreground'
-                          : 'bg-card text-foreground border hover:border-primary'
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-card text-foreground border hover:border-primary'
                         }`}
                     >
                       {category}
