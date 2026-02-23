@@ -89,7 +89,7 @@ export default function MenuSetupPage() {
 
   const handleAddAddOn = () => {
     if (!newAddOn.name.trim() || !newAddOn.price) return;
-    
+
     setAddOns([...addOns, {
       id: Date.now().toString(),
       name: newAddOn.name,
@@ -115,11 +115,13 @@ export default function MenuSetupPage() {
         description: formData.description,
         isAvailable: formData.isAvailable,
         image: '',
-        addOns: addOns.length > 0 ? addOns.map(addon => ({
-          id: addon.id,
-          name: addon.name,
-          price: parseFloat(addon.price),
-        })) : undefined,
+        ...(addOns.length > 0 && {
+          addOns: addOns.map(addon => ({
+            id: addon.id,
+            name: addon.name,
+            price: parseFloat(addon.price),
+          }))
+        }),
         createdAt: Date.now(),
         updatedAt: Date.now(),
       };
@@ -339,7 +341,7 @@ export default function MenuSetupPage() {
               {/* Add-ons Section */}
               <div className="border-t pt-4">
                 <h4 className="text-sm font-semibold text-foreground mb-3">Add-ons (Optional)</h4>
-                
+
                 {addOns.length > 0 && (
                   <div className="mb-4 space-y-2">
                     {addOns.map((addon) => (

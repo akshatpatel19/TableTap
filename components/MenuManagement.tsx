@@ -30,7 +30,7 @@ export const MenuManagement: React.FC<MenuManagementProps> = ({ items, onUpdate 
 
   const handleAddAddOn = () => {
     if (!newAddOn.name.trim() || !newAddOn.price) return;
-    
+
     setEditAddOns([...editAddOns, {
       id: Date.now().toString(),
       name: newAddOn.name,
@@ -55,10 +55,10 @@ export const MenuManagement: React.FC<MenuManagementProps> = ({ items, onUpdate 
     try {
       // Filter out isAvailable property from add-ons before saving
       const addOnsToSave = editAddOns.map(({ isAvailable, ...addon }) => addon);
-      
+
       await updateMenuItem(id, {
         ...editData,
-        addOns: addOnsToSave.length > 0 ? addOnsToSave : undefined,
+        ...(addOnsToSave.length > 0 && { addOns: addOnsToSave }),
         updatedAt: Date.now(),
       });
       setEditingId(null);
@@ -139,7 +139,7 @@ export const MenuManagement: React.FC<MenuManagementProps> = ({ items, onUpdate 
                   {/* Add-ons Edit Section */}
                   <div className="border-t pt-4">
                     <h4 className="text-sm font-semibold text-foreground mb-3">Add-ons</h4>
-                    
+
                     {editAddOns.length > 0 && (
                       <div className="mb-4 space-y-2">
                         {editAddOns.map((addon) => (
