@@ -13,6 +13,7 @@ import {
   getCafe,
   calculateUpgradeCost,
   getDaysRemainingUntilDue,
+  getTableUpgradePayments,
 } from '@/lib/db';
 import { generateQRCode } from '@/lib/upi';
 
@@ -82,10 +83,10 @@ export default function TableUpgradeModal({
 
     const pollInterval = setInterval(async () => {
       try {
-        const updatedCafe = await getCafe(cafe.id);
-        if (updatedCafe) {
-          const latestUpgradePayment = updatedCafe.tableUpgradePayments
-            ?.sort((a, b) => (b.paidDate || 0) - (a.paidDate || 0))[0];
+        const payments = await getTableUpgradePayments(cafe.id);
+        if (payments && payments.length > 0) {
+          const latestUpgradePayment = payments
+            .sort((a, b) => (b.paidDate || 0) - (a.paidDate || 0))[0];
 
           if (latestUpgradePayment && latestUpgradePayment.status === 'paid') {
             clearInterval(pollInterval);

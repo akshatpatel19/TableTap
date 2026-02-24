@@ -11,7 +11,8 @@ import {
   where,
   Query,
   QueryConstraint,
-  onSnapshot
+  onSnapshot,
+  increment
 } from 'firebase/firestore';
 
 export interface Cafe {
@@ -38,38 +39,47 @@ export interface Cafe {
   lastMonthlyPaymentDate?: number; // When last monthly subscription was paid
   nextMonthlyPaymentDueDate?: number; // When next monthly payment is due
   monthlySubscriptionAmount: number; // Per table per month (199 * number of tables)
-  subscriptionPayments: Array<{
-    id: string;
-    paymentId: string; // Unique payment ID
-    type: 'setup' | 'monthly';
-    amount: number;
-    dueDate: number;
-    paidDate?: number;
-    status: 'pending' | 'paid' | 'overdue' | 'rejected';
-    verifiedBy?: string; // Admin ID who verified
-    verifiedAt?: number;
-    notes?: string;
-  }>;
-  tableUpgradePayments?: Array<{
-    id: string;
-    paymentId: string;
-    oldTableCount: number;
-    newTableCount: number;
-    tablesAdded: number;
-    amount: number;
-    daysRemaining: number;
-    paidDate?: number;
-    status: 'pending' | 'paid' | 'rejected';
-    verifiedBy?: string;
-    verifiedAt?: number;
-    notes?: string;
-  }>;
+  // Counters for Aggregation (Issue 10)
+  activeOrdersCount: number;
+  totalOrdersCount: number;
   upcomingPaymentEmailSentAt?: number | null;
   overduePaymentEmailSentAt?: number | null;
   suspensionWarningEmailSentAt?: number | null;
   createdAt: number;
   updatedAt: number;
 }
+
+// Extracted interfaces from Cafe (Issue 1)
+export interface SubscriptionPayment {
+  id: string;
+  cafeId: string; // Foreign key
+  paymentId: string; // Unique payment ID
+  type: 'setup' | 'monthly';
+  amount: number;
+  dueDate: number;
+  paidDate?: number;
+  status: 'pending' | 'paid' | 'overdue' | 'rejected';
+  verifiedBy?: string; // Admin ID who verified
+  verifiedAt?: number;
+  notes?: string;
+}
+
+export interface TableUpgradePayment {
+  id: string;
+  cafeId: string; // Foreign key
+  paymentId: string;
+  oldTableCount: number;
+  newTableCount: number;
+  tablesAdded: number;
+  amount: number;
+  daysRemaining: number;
+  paidDate?: number;
+  status: 'pending' | 'paid' | 'rejected';
+  verifiedBy?: string;
+  verifiedAt?: number;
+  notes?: string;
+}
+
 
 export interface AdminSettings {
   id: string;
@@ -216,7 +226,8 @@ export const createCafe = async (cafeData: Omit<Cafe, 'id' | 'createdAt' | 'upda
     setupFeeStatus: 'pending',
     setupFeeAmount: 4999,
     monthlySubscriptionAmount: (cafeData.tables || 5) * 199,
-    subscriptionPayments: [],
+    activeOrdersCount: 0,
+    totalOrdersCount: 0,
     // Set payment dates based on account creation date
     lastMonthlyPaymentDate: creationTime,
     nextMonthlyPaymentDueDate: nextPaymentDueDate,
@@ -337,6 +348,14 @@ export const createOrder = async (orderData: Omit<Order, 'id' | 'createdAt' | 'u
     updatedAt: Date.now(),
   };
   await setDoc(orderRef, order);
+
+  // Increment active and total counters (Issue 10)
+  const cafeRef = doc(db, 'cafes', orderData.cafeId);
+  await updateDoc(cafeRef, {
+    activeOrdersCount: increment(1),
+    totalOrdersCount: increment(1)
+  });
+
   return order;
 };
 
@@ -369,6 +388,21 @@ export const getCafeOrders = async (cafeId: string, status?: string) => {
 
 export const updateOrder = async (orderId: string, updates: Partial<Order>) => {
   const orderRef = doc(db, 'orders', orderId);
+
+  // If status is transitioning to a finalized state, decrement active orders count (Issue 10)
+  if (updates.status && ['served', 'cancelled'].includes(updates.status)) {
+    const docSnap = await getDoc(orderRef);
+    if (docSnap.exists()) {
+      const orderData = docSnap.data() as Order;
+      if (!['served', 'cancelled'].includes(orderData.status)) {
+        const cafeRef = doc(db, 'cafes', orderData.cafeId);
+        await updateDoc(cafeRef, {
+          activeOrdersCount: increment(-1)
+        });
+      }
+    }
+  }
+
   await updateDoc(orderRef, { ...updates, updatedAt: Date.now() });
 };
 
@@ -467,20 +501,23 @@ export const recordSetupFeePayment = async (cafeId: string) => {
   if (!cafe) throw new Error('Cafe not found');
 
   const paymentId = generatePaymentId();
-  const setupPayment = {
-    id: `setup-${Date.now()}`,
+  const paymentRef = doc(collection(db, 'subscription_payments'));
+
+  const setupPayment: SubscriptionPayment = {
+    id: paymentRef.id,
+    cafeId,
     paymentId,
-    type: 'setup' as const,
+    type: 'setup',
     amount: 4999,
     dueDate: cafe.createdAt,
     paidDate: Date.now(),
-    status: 'pending' as const,
+    status: 'pending',
     notes: 'Awaiting admin verification',
   };
 
-  const updatedPayments = [...(cafe.subscriptionPayments || []), setupPayment];
+  await setDoc(paymentRef, setupPayment);
+
   await updateCafe(cafeId, {
-    subscriptionPayments: updatedPayments,
     setupFeeStatus: 'pending',
     setupFeePaymentId: paymentId,
   });
@@ -494,22 +531,22 @@ export const verifySetupFeePayment = async (cafeId: string, adminId: string, app
 
   const verificationTime = Date.now(); // Capture verification time
 
-  const updatedPayments = cafe.subscriptionPayments.map((payment) => {
-    if (payment.type === 'setup' && payment.status === 'pending') {
-      return {
-        ...payment,
-        status: (approved ? 'paid' : 'rejected') as 'paid' | 'rejected',
-        verifiedBy: adminId,
-        verifiedAt: verificationTime,
-      };
-    }
-    return payment;
-  });
+  // Find the pending setup payment
+  const q = query(collection(db, 'subscription_payments'), where('cafeId', '==', cafeId), where('type', '==', 'setup'), where('status', '==', 'pending'));
+  const querySnapshot = await getDocs(q);
+
+  if (!querySnapshot.empty) {
+    const paymentDoc = querySnapshot.docs[0];
+    await updateDoc(paymentDoc.ref, {
+      status: approved ? 'paid' : 'rejected',
+      verifiedBy: adminId,
+      verifiedAt: verificationTime,
+    });
+  }
 
   // Payment dates are set at account creation and should not change during verification
   // Only update status and verification timestamp
   await updateCafe(cafeId, {
-    subscriptionPayments: updatedPayments,
     setupFeeStatus: approved ? 'paid' : 'rejected',
     setupFeeVerifiedAt: approved ? verificationTime : undefined,
   });
@@ -523,21 +560,21 @@ export const recordMonthlyPayment = async (cafeId: string) => {
 
   const monthlyAmount = cafe.tables * 199;
   const paymentId = generatePaymentId();
-  const monthlyPayment = {
-    id: `monthly-${Date.now()}`,
+  const paymentRef = doc(collection(db, 'subscription_payments'));
+
+  const monthlyPayment: SubscriptionPayment = {
+    id: paymentRef.id,
+    cafeId,
     paymentId,
-    type: 'monthly' as const,
+    type: 'monthly',
     amount: monthlyAmount,
     dueDate: cafe.nextMonthlyPaymentDueDate || Date.now(),
     paidDate: Date.now(),
-    status: 'pending' as const,
+    status: 'pending',
     notes: 'Awaiting admin verification',
   };
 
-  const updatedPayments = [...(cafe.subscriptionPayments || []), monthlyPayment];
-  await updateCafe(cafeId, {
-    subscriptionPayments: updatedPayments,
-  });
+  await setDoc(paymentRef, monthlyPayment);
 
   return monthlyPayment;
 };
@@ -548,17 +585,18 @@ export const verifyMonthlyPayment = async (cafeId: string, paymentId: string, ad
 
   const verificationTime = Date.now(); // Capture verification time
 
-  const updatedPayments = cafe.subscriptionPayments.map((payment) => {
-    if (payment.id === paymentId) {
-      return {
-        ...payment,
-        status: (approved ? 'paid' : 'rejected') as 'paid' | 'rejected',
-        verifiedBy: adminId,
-        verifiedAt: verificationTime,
-      };
-    }
-    return payment;
-  });
+  // Find the specific monthly payment
+  const q = query(collection(db, 'subscription_payments'), where('cafeId', '==', cafeId), where('id', '==', paymentId));
+  const querySnapshot = await getDocs(q);
+
+  if (!querySnapshot.empty) {
+    const paymentDoc = querySnapshot.docs[0];
+    await updateDoc(paymentDoc.ref, {
+      status: approved ? 'paid' : 'rejected',
+      verifiedBy: adminId,
+      verifiedAt: verificationTime,
+    });
+  }
 
   // Payment dates are set at account creation and rolled forward each payment cycle
   // When payment is approved, advance the next payment date by 30 days
@@ -566,13 +604,18 @@ export const verifyMonthlyPayment = async (cafeId: string, paymentId: string, ad
     ? (cafe.nextMonthlyPaymentDueDate || Date.now()) + 30 * 24 * 60 * 60 * 1000
     : cafe.nextMonthlyPaymentDueDate;
 
-  await updateCafe(cafeId, {
-    subscriptionPayments: updatedPayments,
+  const updateData: Partial<Cafe> = {
     nextMonthlyPaymentDueDate: nextMonthlyDue,
     upcomingPaymentEmailSentAt: null,
     overduePaymentEmailSentAt: null,
     suspensionWarningEmailSentAt: null,
-  });
+  };
+
+  if (approved) {
+    updateData.lastMonthlyPaymentDate = verificationTime;
+  }
+
+  await updateCafe(cafeId, updateData);
 
   return approved;
 };
@@ -581,12 +624,22 @@ export const getPendingPayments = async (cafeId: string) => {
   const cafe = await getCafe(cafeId);
   if (!cafe) return { setupFee: null, monthlyPayment: null };
 
-  const setupFee = cafe.subscriptionPayments?.find((p) => p.type === 'setup' && p.status === 'pending');
-  const monthlyPayment = cafe.subscriptionPayments?.find(
-    (p) => p.type === 'monthly' && p.status === 'pending' && Date.now() >= p.dueDate
+  const q = query(collection(db, 'subscription_payments'), where('cafeId', '==', cafeId), where('status', '==', 'pending'));
+  const querySnapshot = await getDocs(q);
+  const pendingPayments = querySnapshot.docs.map(doc => doc.data() as SubscriptionPayment);
+
+  const setupFee = pendingPayments.find((p) => p.type === 'setup');
+  const monthlyPayment = pendingPayments.find(
+    (p) => p.type === 'monthly' && Date.now() >= p.dueDate
   );
 
   return { setupFee, monthlyPayment };
+};
+
+export const getSubscriptionPayments = async (cafeId: string) => {
+  const q = query(collection(db, 'subscription_payments'), where('cafeId', '==', cafeId));
+  const querySnapshot = await getDocs(q);
+  return querySnapshot.docs.map(doc => doc.data() as SubscriptionPayment);
 };
 
 export const isMonthlyPaymentDue = async (cafeId: string) => {
@@ -711,24 +764,23 @@ export const recordTableUpgradePayment = async (
 
   const amount = calculateUpgradeCost(tablesAdded, daysRemaining, monthlyFeePerTable);
   const paymentId = generatePaymentId();
+  const paymentRef = doc(collection(db, 'table_upgrade_payments'));
 
-  const upgradePayment = {
-    id: `upgrade-${Date.now()}`,
+  const upgradePayment: TableUpgradePayment = {
+    id: paymentRef.id,
+    cafeId,
     paymentId,
     oldTableCount,
     newTableCount,
     tablesAdded,
     amount,
     daysRemaining,
-    status: 'pending' as const,
+    status: 'pending',
     paidDate: Date.now(),
     notes: 'Awaiting admin verification',
   };
 
-  const updatedUpgradePayments = [...(cafe.tableUpgradePayments || []), upgradePayment];
-  await updateCafe(cafeId, {
-    tableUpgradePayments: updatedUpgradePayments,
-  });
+  await setDoc(paymentRef, upgradePayment);
 
   return upgradePayment;
 };
@@ -743,32 +795,25 @@ export const verifyTableUpgradePayment = async (
   const cafe = await getCafe(cafeId);
   if (!cafe) throw new Error('Cafe not found');
 
-  const upgradePayment = cafe.tableUpgradePayments?.find((p) => p.paymentId === paymentId);
-  if (!upgradePayment) throw new Error('Payment not found');
+  const q = query(collection(db, 'table_upgrade_payments'), where('cafeId', '==', cafeId), where('id', '==', paymentId));
+  const querySnapshot = await getDocs(q);
 
+  if (querySnapshot.empty) throw new Error('Payment not found');
+
+  const paymentDoc = querySnapshot.docs[0];
+  const upgradePayment = paymentDoc.data() as TableUpgradePayment;
   const verificationTime = Date.now();
 
-  const updatedUpgradePayments = (cafe.tableUpgradePayments || []).map((payment) => {
-    if (payment.paymentId === paymentId) {
-      return {
-        ...payment,
-        status: (approved ? 'paid' : 'rejected') as 'paid' | 'rejected',
-        verifiedBy: adminId,
-        verifiedAt: verificationTime,
-      };
-    }
-    return payment;
+  await updateDoc(paymentDoc.ref, {
+    status: approved ? 'paid' : 'rejected',
+    verifiedBy: adminId,
+    verifiedAt: verificationTime,
   });
 
   // If approved, update the cafe's table count
   if (approved) {
     await updateCafe(cafeId, {
-      tableUpgradePayments: updatedUpgradePayments,
       tables: upgradePayment.newTableCount,
-    });
-  } else {
-    await updateCafe(cafeId, {
-      tableUpgradePayments: updatedUpgradePayments,
     });
   }
 
@@ -777,9 +822,9 @@ export const verifyTableUpgradePayment = async (
 
 // Get table upgrade payments for a cafe
 export const getTableUpgradePayments = async (cafeId: string) => {
-  const cafe = await getCafe(cafeId);
-  if (!cafe) return [];
-  return cafe.tableUpgradePayments || [];
+  const q = query(collection(db, 'table_upgrade_payments'), where('cafeId', '==', cafeId));
+  const querySnapshot = await getDocs(q);
+  return querySnapshot.docs.map(doc => doc.data() as TableUpgradePayment);
 };
 
 // Get pending table upgrade payments for a cafe
@@ -800,24 +845,27 @@ export const recordTableDowngrade = async (
   const tablesRemoved = oldTableCount - newTableCount;
   if (tablesRemoved <= 0) throw new Error('New table count must be less than current count');
 
-  const downgradePayment = {
-    id: `downgrade-${Date.now()}`,
+  const paymentRef = doc(collection(db, 'table_upgrade_payments'));
+  const downgradePayment: TableUpgradePayment = {
+    id: paymentRef.id,
+    cafeId,
     paymentId: generatePaymentId(),
     oldTableCount,
     newTableCount,
     tablesAdded: -tablesRemoved, // Negative to indicate removal
     amount: 0, // No charge for downgrade
     daysRemaining: 0,
-    status: 'paid' as const, // Auto-approved, no payment needed
+    status: 'paid', // Auto-approved, no payment needed
     paidDate: Date.now(),
     verifiedAt: Date.now(),
     notes: 'Table downgrade - no payment required',
   };
 
+  await setDoc(paymentRef, downgradePayment);
+
   // Update table count immediately
   await updateCafe(cafeId, {
     tables: newTableCount,
-    tableUpgradePayments: [...(cafe.tableUpgradePayments || []), downgradePayment],
   });
 
   return downgradePayment;
@@ -858,6 +906,21 @@ export function subscribeToAllCafes(callback: (cafes: Cafe[]) => void) {
   return onSnapshot(cafesRef, (querySnapshot) => {
     const cafes = querySnapshot.docs.map((docSnap) => ({ ...(docSnap.data() as Cafe), id: docSnap.id }));
     callback(cafes);
+  });
+}
+
+// Global listeners for Admin Dashboard (Issue 1)
+export function subscribeToSystemPendingSubscriptionPayments(callback: (payments: SubscriptionPayment[]) => void) {
+  const q = query(collection(db, 'subscription_payments'), where('status', '==', 'pending'));
+  return onSnapshot(q, (snapshot) => {
+    callback(snapshot.docs.map(doc => doc.data() as SubscriptionPayment));
+  });
+}
+
+export function subscribeToSystemPendingUpgradePayments(callback: (payments: TableUpgradePayment[]) => void) {
+  const q = query(collection(db, 'table_upgrade_payments'), where('status', '==', 'pending'));
+  return onSnapshot(q, (snapshot) => {
+    callback(snapshot.docs.map(doc => doc.data() as TableUpgradePayment));
   });
 }
 // Enforce automatic suspensions for cafes overdue by more than 30 days

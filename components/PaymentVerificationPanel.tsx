@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Cafe, getCafe, verifySetupFeePayment, verifyMonthlyPayment, verifyTableUpgradePayment } from '@/lib/db';
+import { Cafe, getCafe, verifySetupFeePayment, verifyMonthlyPayment, verifyTableUpgradePayment, getSubscriptionPayments, getTableUpgradePayments, SubscriptionPayment, TableUpgradePayment } from '@/lib/db';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -21,12 +21,22 @@ export default function PaymentVerificationPanel({ cafeId, onVerificationComplet
   const [selectedPayment, setSelectedPayment] = useState<any>(null);
   const [showDialog, setShowDialog] = useState(false);
   const [dialogAction, setDialogAction] = useState<'approve' | 'reject'>('approve');
+  const [subscriptionPayments, setSubscriptionPayments] = useState<SubscriptionPayment[]>([]);
+  const [upgradePayments, setUpgradePayments] = useState<TableUpgradePayment[]>([]);
 
   useEffect(() => {
     const loadCafe = async () => {
       try {
         const data = await getCafe(cafeId);
         setCafe(data);
+        if (data) {
+          const [sub, upg] = await Promise.all([
+            getSubscriptionPayments(cafeId),
+            getTableUpgradePayments(cafeId)
+          ]);
+          setSubscriptionPayments(sub);
+          setUpgradePayments(upg);
+        }
       } catch (err) {
         console.error('[v0] Error loading cafe:', err);
         setError('Failed to load cafe data');
@@ -45,9 +55,11 @@ export default function PaymentVerificationPanel({ cafeId, onVerificationComplet
     try {
       const adminId = localStorage.getItem('admin_token') || 'admin';
       await verifySetupFeePayment(cafeId, adminId, approve);
-      
+
       const updatedCafe = await getCafe(cafeId);
       setCafe(updatedCafe);
+      // Refresh payments
+      getSubscriptionPayments(cafeId).then(setSubscriptionPayments);
       setShowDialog(false);
       onVerificationComplete?.();
     } catch (err) {
@@ -65,9 +77,11 @@ export default function PaymentVerificationPanel({ cafeId, onVerificationComplet
     try {
       const adminId = localStorage.getItem('admin_token') || 'admin';
       await verifyMonthlyPayment(cafeId, paymentId, adminId, approve);
-      
+
       const updatedCafe = await getCafe(cafeId);
       setCafe(updatedCafe);
+      // Refresh payments
+      getSubscriptionPayments(cafeId).then(setSubscriptionPayments);
       setShowDialog(false);
       onVerificationComplete?.();
     } catch (err) {
@@ -85,9 +99,11 @@ export default function PaymentVerificationPanel({ cafeId, onVerificationComplet
     try {
       const adminId = localStorage.getItem('admin_token') || 'admin';
       await verifyTableUpgradePayment(cafeId, paymentId, adminId, approve);
-      
+
       const updatedCafe = await getCafe(cafeId);
       setCafe(updatedCafe);
+      // Refresh payments
+      getTableUpgradePayments(cafeId).then(setUpgradePayments);
       setShowDialog(false);
       onVerificationComplete?.();
     } catch (err) {
@@ -114,10 +130,9 @@ export default function PaymentVerificationPanel({ cafeId, onVerificationComplet
     );
   }
 
-  const setupFeePayment = cafe.subscriptionPayments?.find((p) => p.type === 'setup');
-  const monthlyPayments = cafe.subscriptionPayments?.filter((p) => p.type === 'monthly') || [];
+  const setupFeePayment = subscriptionPayments.find((p) => p.type === 'setup');
+  const monthlyPayments = subscriptionPayments.filter((p) => p.type === 'monthly') || [];
   const pendingMonthlyPayments = monthlyPayments.filter((p) => p.status === 'pending');
-  const upgradePayments = cafe.tableUpgradePayments || [];
   const pendingUpgradePayments = upgradePayments.filter((p) => p.status === 'pending');
 
   return (

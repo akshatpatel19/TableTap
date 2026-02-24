@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { subscribeToAllCafes, Cafe, verifyMonthlyPayment, updateCafe } from '@/lib/db';
+import { useEffect, useState, useMemo } from 'react';
+import { subscribeToAllCafes, Cafe, verifyMonthlyPayment, verifySetupFeePayment, verifyTableUpgradePayment, subscribeToSystemPendingSubscriptionPayments, subscribeToSystemPendingUpgradePayments, SubscriptionPayment, TableUpgradePayment } from '@/lib/db';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -10,7 +10,7 @@ import { useRouter } from 'next/navigation';
 
 interface PendingPayment {
     cafe: Cafe;
-    paymentData: NonNullable<Cafe['subscriptionPayments']>[0] | NonNullable<Cafe['tableUpgradePayments']>[0];
+    paymentData: SubscriptionPayment | TableUpgradePayment;
     typeOverride: 'setup' | 'monthly' | 'upgrade';
 }
 
@@ -21,6 +21,10 @@ export default function AdminPaymentsDashboard() {
     const [filter, setFilter] = useState<'all' | 'setup' | 'monthly' | 'upgrade'>('all');
     const [adminId, setAdminId] = useState<string>('');
 
+    const [cafesMap, setCafesMap] = useState<Map<string, Cafe>>(new Map());
+    const [subPayments, setSubPayments] = useState<SubscriptionPayment[]>([]);
+    const [upPayments, setUpPayments] = useState<TableUpgradePayment[]>([]);
+
     useEffect(() => {
         const adminToken = localStorage.getItem('admin_token');
         if (!adminToken) {
@@ -30,90 +34,67 @@ export default function AdminPaymentsDashboard() {
 
         setAdminId(adminToken);
 
-        // Subscribe to cafes collection for realtime updates
-        let first = true;
-        const unsubscribe = subscribeToAllCafes((allCafes) => {
-            try {
-                const allPending: PendingPayment[] = [];
+        const unsubscribeCafes = subscribeToAllCafes((allCafes) => {
+            setCafesMap(new Map(allCafes.map(c => [c.id, c])));
+        });
 
-                allCafes.forEach((cafe) => {
-                    const payments = cafe.subscriptionPayments || [];
-                    payments.forEach((payment) => {
-                        if (payment.status === 'pending') {
-                            allPending.push({ cafe, paymentData: payment, typeOverride: payment.type });
-                        }
-                    });
+        const unsubscribeSubs = subscribeToSystemPendingSubscriptionPayments((payments) => {
+            setSubPayments(payments);
+        });
 
-                    const upgradePayments = cafe.tableUpgradePayments || [];
-                    upgradePayments.forEach((payment) => {
-                        if (payment.status === 'pending') {
-                            allPending.push({ cafe, paymentData: payment as any, typeOverride: 'upgrade' });
-                        }
-                    });
-                });
+        const unsubscribeUpgrades = subscribeToSystemPendingUpgradePayments((payments) => {
+            setUpPayments(payments);
+        });
 
-                setPendingPayments(allPending.sort((a, b) => {
-                    const dateA = 'dueDate' in a.paymentData ? a.paymentData.dueDate : parseInt(a.paymentData.id.split('-')[1] || '0');
-                    const dateB = 'dueDate' in b.paymentData ? b.paymentData.dueDate : parseInt(b.paymentData.id.split('-')[1] || '0');
-                    return dateB - dateA;
-                }));
+        const timeoutId = setTimeout(() => {
+            setLoading(false);
+        }, 1500);
 
-                // Turn off loading after first snapshot
-                if (first) {
-                    setLoading(false);
-                    first = false;
-                }
-            } catch (err) {
-                console.error('Error processing realtime payments snapshot:', err);
+        return () => {
+            if (unsubscribeCafes) unsubscribeCafes();
+            if (unsubscribeSubs) unsubscribeSubs();
+            if (unsubscribeUpgrades) unsubscribeUpgrades();
+            clearTimeout(timeoutId);
+        };
+    }, [router]);
+
+    useEffect(() => {
+        if (cafesMap.size === 0) return;
+
+        const allPending: PendingPayment[] = [];
+
+        subPayments.forEach((payment) => {
+            const cafe = cafesMap.get(payment.cafeId);
+            if (cafe) {
+                allPending.push({ cafe, paymentData: payment, typeOverride: payment.type });
             }
         });
 
-        return () => {
-            if (unsubscribe) unsubscribe();
-        };
-    }, [router]);
+        upPayments.forEach((payment) => {
+            const cafe = cafesMap.get(payment.cafeId);
+            if (cafe) {
+                allPending.push({ cafe, paymentData: payment, typeOverride: 'upgrade' });
+            }
+        });
+
+        setPendingPayments(allPending.sort((a, b) => {
+            const dateA = 'dueDate' in a.paymentData ? a.paymentData.dueDate : parseInt(a.paymentData.id.split('-')[1] || '0');
+            const dateB = 'dueDate' in b.paymentData ? b.paymentData.dueDate : parseInt(b.paymentData.id.split('-')[1] || '0');
+            return dateB - dateA;
+        }));
+    }, [cafesMap, subPayments, upPayments]);
 
     const handleVerification = async (paymentId: string, cafeId: string, paymentType: 'setup' | 'monthly' | 'upgrade', approved: boolean) => {
         try {
             if (paymentType === 'setup') {
-                const cafe = pendingPayments.find(p => p.cafe.id === cafeId)?.cafe;
-                if (!cafe) return;
-
-                const updatedPayments = (cafe.subscriptionPayments || []).map(p => {
-                    if (p.id === paymentId) {
-                        return { ...p, status: approved ? 'paid' : ('rejected' as any), verifiedBy: adminId, verifiedAt: Date.now() };
-                    }
-                    return p;
-                });
-
-                await updateCafe(cafeId, {
-                    setupFeeStatus: approved ? 'paid' : 'rejected',
-                    setupFeeVerifiedAt: Date.now(),
-                    subscriptionPayments: updatedPayments
-                });
+                await verifySetupFeePayment(cafeId, adminId, approved);
             } else if (paymentType === 'upgrade') {
-                const cafe = pendingPayments.find(p => p.cafe.id === cafeId)?.cafe;
-                if (!cafe) return;
-
-                const updatedUpgradePayments = (cafe.tableUpgradePayments || []).map(p => {
-                    if (p.id === paymentId) {
-                        return { ...p, status: approved ? 'paid' : ('rejected' as any), verifiedBy: adminId, verifiedAt: Date.now() };
-                    }
-                    return p;
-                });
-
-                // If approved, strictly apply the new table count from the verified payment object
-                const tableCountToSet = approved ? cafe.tableUpgradePayments?.find(p => p.id === paymentId)?.newTableCount || cafe.tables : cafe.tables;
-
-                await updateCafe(cafeId, {
-                    tableUpgradePayments: updatedUpgradePayments,
-                    tables: tableCountToSet
-                });
+                await verifyTableUpgradePayment(cafeId, paymentId, adminId, approved);
             } else {
                 await verifyMonthlyPayment(cafeId, paymentId, adminId, approved);
             }
 
-            // Remove from UI instantly
+            // Remove from UI instantly (for snappy UX, listeners will catch up)
             setPendingPayments((prev) => prev.filter((p) => p.paymentData.id !== paymentId));
         } catch (error) {
             console.error('Error verifying payment:', error);

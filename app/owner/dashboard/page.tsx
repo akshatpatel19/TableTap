@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { auth } from '@/lib/firebase';
-import { getCafeByEmail, getSubscription, Cafe, Subscription, createSubscription, createMenuItem, getOrders, updateOrder, Order, isMonthlyPaymentDue, getPendingPayments, isPaymentReminderDue, isPaymentOverdue, getDaysRemainingUntilDue, getAdminSettings, AdminSettings, subscribeToAdminSettings, subscribeToCafeByEmail } from '@/lib/db';
+import { getCafeByEmail, getSubscription, Cafe, Subscription, createSubscription, createMenuItem, getOrders, updateOrder, Order, isMonthlyPaymentDue, getPendingPayments, isPaymentReminderDue, isPaymentOverdue, getDaysRemainingUntilDue, getAdminSettings, AdminSettings, subscribeToAdminSettings, subscribeToCafeByEmail, getSubscriptionPayments, getTableUpgradePayments, SubscriptionPayment, TableUpgradePayment } from '@/lib/db';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -35,6 +35,9 @@ export default function OwnerDashboard() {
   const [adminSettings, setAdminSettings] = useState<AdminSettings | null>(null);
   const [lastConfirmedTableCount, setLastConfirmedTableCount] = useState<number | null>(null);
 
+  const [subscriptionPayments, setSubscriptionPayments] = useState<SubscriptionPayment[]>([]);
+  const [tableUpgradePayments, setTableUpgradePayments] = useState<TableUpgradePayment[]>([]);
+
   useEffect(() => {
     // Use onAuthStateChanged so we wait for Firebase to restore the auth
     // session asynchronously on page refresh (auth.currentUser is null
@@ -65,11 +68,18 @@ export default function OwnerDashboard() {
 
         setLastConfirmedTableCount(savedTableCount || cafeData.tables);
 
+        const [subPayments, upgradePayments] = await Promise.all([
+          getSubscriptionPayments(cafeData.id),
+          getTableUpgradePayments(cafeData.id),
+        ]);
+        setSubscriptionPayments(subPayments);
+        setTableUpgradePayments(upgradePayments);
+
         // Show popup initially only if there are upgrades AND either:
         // 1. It's never been dismissed, OR
         // 2. The table count has changed since dismissal
-        const shouldShowInitially = !!(cafeData.tableUpgradePayments &&
-          cafeData.tableUpgradePayments.length > 0 &&
+        const shouldShowInitially = !!(upgradePayments &&
+          upgradePayments.length > 0 &&
           (!dismissedState || cafeData.tables !== savedTableCount));
         setShowTableUpgrades(shouldShowInitially);
 
@@ -82,11 +92,17 @@ export default function OwnerDashboard() {
             const savedTableCount = dismissedState ? parseInt(dismissedState) : null;
 
             // Only show popup if table count differs from saved count
-            if (updatedCafe.tableUpgradePayments &&
-              updatedCafe.tableUpgradePayments.length > 0 &&
-              (!dismissedState || updatedCafe.tables !== savedTableCount)) {
-              setShowTableUpgrades(true);
-            }
+            // Note: In real-time update we aren't heavily tracking sub-updates, 
+            // but fetching dynamically if table counts change.
+            getTableUpgradePayments(updatedCafe.id).then(upPayments => {
+              setTableUpgradePayments(upPayments);
+              if (upPayments &&
+                upPayments.length > 0 &&
+                (!dismissedState || updatedCafe.tables !== savedTableCount)) {
+                setShowTableUpgrades(true);
+              }
+            });
+            getSubscriptionPayments(updatedCafe.id).then(setSubscriptionPayments);
           }
         });
 
@@ -290,8 +306,14 @@ export default function OwnerDashboard() {
       const cafeData = await getCafeByEmail(cafe.email);
       if (cafeData) {
         setCafe(cafeData);
-        const pending = await getPendingPayments(cafeData.id);
+        const [pending, subPayments, upgradePayments] = await Promise.all([
+          getPendingPayments(cafeData.id),
+          getSubscriptionPayments(cafeData.id),
+          getTableUpgradePayments(cafeData.id)
+        ]);
         setPendingPayments(pending);
+        setSubscriptionPayments(subPayments);
+        setTableUpgradePayments(upgradePayments);
       }
     }
   };
@@ -465,7 +487,7 @@ export default function OwnerDashboard() {
 
 
         {/* Table Upgrade Status */}
-        {showTableUpgrades && cafe && cafe.tableUpgradePayments && cafe.tableUpgradePayments.length > 0 && (
+        {showTableUpgrades && cafe && tableUpgradePayments && tableUpgradePayments.length > 0 && (
           <Card className="p-6 mb-8 border-l-4 border-l-blue-600 bg-blue-50 relative">
             <div className="absolute top-4 right-4">
               <button
@@ -491,7 +513,7 @@ export default function OwnerDashboard() {
               </div>
 
               <div className="space-y-3">
-                {cafe.tableUpgradePayments
+                {tableUpgradePayments
                   .sort((a, b) => (b.paidDate || 0) - (a.paidDate || 0))
                   .slice(0, 3)
                   .map((upgrade) => (
@@ -789,13 +811,13 @@ export default function OwnerDashboard() {
             </div>
 
             {/* Payment History */}
-            {cafe.subscriptionPayments && cafe.subscriptionPayments.length > 0 && (
+            {subscriptionPayments && subscriptionPayments.length > 0 && (
               <div className="mt-6 pt-6 border-t border-muted">
                 <p className="text-sm font-medium text-muted-foreground mb-4">Payment History</p>
                 <div className="space-y-2 max-h-40 overflow-y-auto">
                   {[
-                    ...cafe.subscriptionPayments,
-                    ...(cafe.tableUpgradePayments || [])
+                    ...subscriptionPayments,
+                    ...(tableUpgradePayments || [])
                   ]
                     .sort((a: any, b: any) => (b.paidDate || b.dueDate || 0) - (a.paidDate || a.dueDate || 0))
                     .slice(0, 5)

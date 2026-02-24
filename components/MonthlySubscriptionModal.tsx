@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Loader2, QrCode, Copy, Check, AlertCircle } from 'lucide-react';
-import { Cafe, recordMonthlyPayment, getAdminSettings, AdminSettings, getCafe } from '@/lib/db';
+import { Cafe, recordMonthlyPayment, getAdminSettings, AdminSettings, getSubscriptionPayments } from '@/lib/db';
 import { generateQRCode } from '@/lib/upi';
 
 interface MonthlySubscriptionModalProps {
@@ -52,11 +52,11 @@ export default function MonthlySubscriptionModal({
 
     const pollInterval = setInterval(async () => {
       try {
-        const updatedCafe = await getCafe(cafe.id);
-        if (updatedCafe) {
+        const payments = await getSubscriptionPayments(cafe.id);
+        if (payments && payments.length > 0) {
           // Check if latest monthly payment is verified
-          const latestMonthlyPayment = updatedCafe.subscriptionPayments
-            ?.filter((p) => p.type === 'monthly')
+          const latestMonthlyPayment = payments
+            .filter((p) => p.type === 'monthly')
             .sort((a, b) => (b.paidDate || 0) - (a.paidDate || 0))[0];
 
           if (latestMonthlyPayment && latestMonthlyPayment.status === 'paid') {
@@ -140,14 +140,14 @@ export default function MonthlySubscriptionModal({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent 
-        className="max-w-md max-h-[90vh] overflow-y-auto" 
+      <DialogContent
+        className="max-w-md max-h-[90vh] overflow-y-auto"
         onPointerDownOutside={(e) => {
           // If overdue, prevent closing by clicking outside
           if (isOverdue && step !== 'confirmed') {
             e.preventDefault();
           }
-        }} 
+        }}
         onEscapeKeyDown={(e) => {
           // If overdue, prevent closing with ESC key
           if (isOverdue && step !== 'confirmed') {
@@ -351,7 +351,7 @@ export default function MonthlySubscriptionModal({
                   </div>
                   <p className="text-sm text-muted-foreground">Monthly payment recorded in our system</p>
                 </div>
-                
+
                 <div className="flex items-start gap-3 p-3 bg-muted rounded-lg">
                   <div className="flex-shrink-0 mt-1">
                     <div className="flex items-center justify-center h-5 w-5 rounded-full bg-muted-foreground/20">

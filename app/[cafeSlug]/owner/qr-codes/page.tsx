@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { auth } from '@/lib/firebase';
-import { getCafeBySlug, Cafe } from '@/lib/db';
+import { getCafeBySlug, Cafe, getTableUpgradePayments, TableUpgradePayment } from '@/lib/db';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -16,6 +16,7 @@ export default function QRCodesPage() {
   const [cafe, setCafe] = useState<Cafe | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedTable, setSelectedTable] = useState<number | null>(null);
+  const [pendingUpgrades, setPendingUpgrades] = useState<TableUpgradePayment[]>([]);
 
   const cafeSlug = params.cafeSlug as string;
 
@@ -34,6 +35,9 @@ export default function QRCodesPage() {
         }
 
         setCafe(cafeData);
+        // Fetch pending upgrades
+        const upgrades = await getTableUpgradePayments(cafeData.id);
+        setPendingUpgrades(upgrades.filter(p => p.status === 'pending'));
       } catch (error) {
         console.error('[v0] Error loading cafe:', error);
       } finally {
@@ -101,7 +105,7 @@ export default function QRCodesPage() {
 
       <div className="max-w-6xl mx-auto px-4 py-8">
         {/* Pending Upgrades Info */}
-        {cafe.tableUpgradePayments && cafe.tableUpgradePayments.some((p) => p.status === 'pending') && (
+        {pendingUpgrades.length > 0 && (
           <Card className="p-6 mb-8 bg-amber-50 border-amber-200">
             <div className="flex items-start gap-3">
               <Clock className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
@@ -111,13 +115,11 @@ export default function QRCodesPage() {
                   You have pending table upgrade requests. Once approved by admin, new QR codes will appear below:
                 </p>
                 <div className="space-y-2">
-                  {cafe.tableUpgradePayments
-                    .filter((p) => p.status === 'pending')
-                    .map((payment) => (
-                      <div key={payment.id} className="text-sm text-amber-800 bg-white/50 rounded p-2">
-                        <span className="font-semibold">{payment.oldTableCount} → {payment.newTableCount} tables</span> ({payment.tablesAdded} new) - Amount: ₹{payment.amount}
-                      </div>
-                    ))}
+                  {pendingUpgrades.map((payment) => (
+                    <div key={payment.id} className="text-sm text-amber-800 bg-white/50 rounded p-2">
+                      <span className="font-semibold">{payment.oldTableCount} → {payment.newTableCount} tables</span> ({payment.tablesAdded} new) - Amount: ₹{payment.amount}
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
