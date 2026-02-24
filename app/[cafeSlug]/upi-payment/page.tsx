@@ -88,10 +88,10 @@ export default function UPIPaymentPage() {
 
     setConfirming(true);
     try {
-      // Update order status to confirmed (cafe will verify manually)
+      // Update order status to pending (cafe will verify manually)
       await updateOrder(order.id, {
         paymentStatus: 'pending', // Pending manual verification
-        status: 'confirmed',
+        status: 'pending',
       });
 
       router.push(`/${cafeSlug}/order-confirmation?orderId=${order.id}&paymentPending=true`);

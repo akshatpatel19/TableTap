@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { getCafeBySlug, getCafeOrders, getMenuItems, Order, MenuItem, Cafe, getCafeCategories } from '@/lib/db';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Loader2, LogOut, Settings, RefreshCw, FileText, Download } from 'lucide-react';
+import { Loader2, LogOut, Settings, RefreshCw, FileText, Download, ArrowLeft } from 'lucide-react';
 import { StaffOrdersView } from '@/components/StaffOrdersView';
 import { MenuManagement } from '@/components/MenuManagement';
 
@@ -91,9 +91,14 @@ export default function StaffDashboard() {
       {/* Header */}
       <div className="sticky top-0 z-40 bg-card border-b shadow-lg">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">{cafe.name}</h1>
-            <p className="text-sm text-muted-foreground">Staff Dashboard</p>
+          <div className="flex items-center gap-4">
+            <Button variant="outline" size="icon" onClick={() => router.back()}>
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <div>
+              <h1 className="text-2xl font-bold text-foreground">{cafe.name}</h1>
+              <p className="text-sm text-muted-foreground">Staff Dashboard</p>
+            </div>
           </div>
           <div className="flex items-center gap-3">
             <a href={`/owner/bills`} target="_blank" rel="noopener noreferrer">

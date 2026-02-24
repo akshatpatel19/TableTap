@@ -164,13 +164,25 @@ export default function OrderConfirmationPage() {
       <div className="max-w-2xl mx-auto px-4 py-8">
         {/* Payment Status Alert */}
         {getPaymentStatusDisplay()}
-        {/* Success Message */}
+        {/* Success / Pending Message */}
         <Card className="p-8 text-center mb-8">
-          <CheckCircle className="h-16 w-16 text-green-600 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-foreground mb-2">Order Placed Successfully!</h2>
-          <p className="text-muted-foreground mb-4">
-            Your order has been sent to the kitchen. You&apos;ll be notified when it&apos;s ready.
-          </p>
+          {order?.paymentMethod === 'online' && order?.paymentStatus === 'pending' && paymentPending ? (
+            <>
+              <Clock className="h-16 w-16 text-yellow-600 mx-auto mb-4 animate-pulse" />
+              <h2 className="text-2xl font-bold text-foreground mb-2">Payment Verification Pending</h2>
+              <p className="text-muted-foreground mb-4">
+                Your order is waiting for the cafe staff to verify your full payment.
+              </p>
+            </>
+          ) : (
+            <>
+              <CheckCircle className="h-16 w-16 text-green-600 mx-auto mb-4" />
+              <h2 className="text-2xl font-bold text-foreground mb-2">Order Placed Successfully!</h2>
+              <p className="text-muted-foreground mb-4">
+                Your order has been sent to the kitchen. You&apos;ll be notified when it&apos;s ready.
+              </p>
+            </>
+          )}
           <p className="text-sm text-muted-foreground">
             Order ID: <span className="font-mono font-semibold text-foreground">{order.id}</span>
           </p>

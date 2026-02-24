@@ -7,7 +7,7 @@ import { getCafeByEmail, getSubscription, Cafe, Subscription, createSubscription
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, LogOut, QrCode, Menu, Users, Settings, Tag, FileText, TrendingUp, X, Megaphone, ShieldAlert } from 'lucide-react';
+import { Loader2, LogOut, QrCode, Menu, Users, Settings, Tag, FileText, TrendingUp, X, Megaphone, ShieldAlert, Maximize, FileCheck } from 'lucide-react';
 import { SubscriptionPlansComponent, SubscriptionPlan } from '@/components/SubscriptionPlans';
 import SetupFeePaymentModal from '@/components/SetupFeePaymentModal';
 import MonthlySubscriptionModal from '@/components/MonthlySubscriptionModal';
@@ -335,10 +335,27 @@ export default function OwnerDashboard() {
             <h1 className="text-2xl font-bold text-foreground">{cafe.name}</h1>
             <p className="text-sm text-muted-foreground">Owner Dashboard</p>
           </div>
-          <Button onClick={handleLogout} variant="outline" size="sm" className="flex items-center gap-2 bg-transparent">
-            <LogOut className="h-4 w-4" />
-            Logout
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={() => {
+                if (!document.fullscreenElement) {
+                  document.documentElement.requestFullscreen().catch((err) => console.error(err));
+                } else {
+                  document.exitFullscreen();
+                }
+              }}
+              variant="outline"
+              size="sm"
+              className="flex items-center gap-2 bg-transparent"
+            >
+              <Maximize className="h-4 w-4" />
+              <span className="hidden sm:inline">Fullscreen</span>
+            </Button>
+            <Button onClick={handleLogout} variant="outline" size="sm" className="flex items-center gap-2 bg-transparent">
+              <LogOut className="h-4 w-4" />
+              Logout
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -619,6 +636,14 @@ export default function OwnerDashboard() {
               <Settings className="h-8 w-8 text-primary mb-3" />
               <h3 className="font-semibold text-foreground mb-1">Settings</h3>
               <p className="text-sm text-muted-foreground">Cafe settings</p>
+            </Card>
+          </Link>
+
+          <Link href="/owner/tax-compliance" className="block">
+            <Card className="p-6 cursor-pointer hover:shadow-lg transition-shadow h-full">
+              <FileCheck className="h-8 w-8 text-primary mb-3" />
+              <h3 className="font-semibold text-foreground mb-1">Tax Compliance</h3>
+              <p className="text-sm text-muted-foreground">Coming very soon</p>
             </Card>
           </Link>
         </div>
