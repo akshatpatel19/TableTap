@@ -256,6 +256,14 @@ export const getAllCafes = async () => {
   return querySnapshot.docs.map((doc) => doc.data() as Cafe);
 };
 
+// Menu cache to prevent read amplification (Issue 5)
+const menuCache = new Map<string, { data: MenuItem[], timestamp: number }>();
+const MENU_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+export const invalidateMenuCache = (cafeId: string) => {
+  menuCache.delete(cafeId);
+};
+
 // Menu item operations
 export const createMenuItem = async (menuData: Omit<MenuItem, 'id' | 'createdAt' | 'updatedAt'>) => {
   const menuRef = doc(collection(db, 'menuItems'));
@@ -266,23 +274,57 @@ export const createMenuItem = async (menuData: Omit<MenuItem, 'id' | 'createdAt'
     updatedAt: Date.now(),
   };
   await setDoc(menuRef, menuItem);
+  invalidateMenuCache(menuData.cafeId);
   return menuItem;
 };
 
 export const getMenuItems = async (cafeId: string) => {
+  const now = Date.now();
+  const cached = menuCache.get(cafeId);
+  if (cached && now - cached.timestamp < MENU_CACHE_TTL) {
+    return cached.data;
+  }
+
   const q = query(collection(db, 'menuItems'), where('cafeId', '==', cafeId));
   const querySnapshot = await getDocs(q);
-  return querySnapshot.docs.map((doc) => doc.data() as MenuItem);
+  const data = querySnapshot.docs.map((doc) => doc.data() as MenuItem);
+
+  menuCache.set(cafeId, { data, timestamp: now });
+  return data;
 };
 
 export const updateMenuItem = async (menuItemId: string, updates: Partial<MenuItem>) => {
   const menuRef = doc(db, 'menuItems', menuItemId);
+
+  let cafeId = updates.cafeId;
+  if (!cafeId) {
+    const docSnap = await getDoc(menuRef);
+    if (docSnap.exists()) {
+      cafeId = (docSnap.data() as MenuItem).cafeId;
+    }
+  }
+
   await updateDoc(menuRef, { ...updates, updatedAt: Date.now() });
+
+  if (cafeId) {
+    invalidateMenuCache(cafeId);
+  }
 };
 
 export const deleteMenuItem = async (menuItemId: string) => {
   const menuRef = doc(db, 'menuItems', menuItemId);
+
+  const docSnap = await getDoc(menuRef);
+  let cafeId;
+  if (docSnap.exists()) {
+    cafeId = (docSnap.data() as MenuItem).cafeId;
+  }
+
   await deleteDoc(menuRef);
+
+  if (cafeId) {
+    invalidateMenuCache(cafeId);
+  }
 };
 
 // Order operations
@@ -821,7 +863,11 @@ export function subscribeToAllCafes(callback: (cafes: Cafe[]) => void) {
 // Enforce automatic suspensions for cafes overdue by more than 30 days
 export const enforceOverdueSuspensions = async () => {
   try {
-    const cafes = await getAllCafes();
+    // Only query active cafes to avoid full collection scans (Issue 8)
+    const activeCafesQuery = query(collection(db, 'cafes'), where('isActive', '==', true));
+    const querySnapshot = await getDocs(activeCafesQuery);
+    const cafes = querySnapshot.docs.map(doc => doc.data() as Cafe);
+
     const now = Date.now();
     const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
     const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
