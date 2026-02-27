@@ -103,7 +103,7 @@ export const FloatingOrderCart: React.FC<FloatingOrderCartProps> = ({ cafeSlug }
             </div>
 
             <Link
-              href={`/${cafeSlug}/checkout${tableId ? `?tableId=${tableId}` : ''}`}
+              href={`/${cafeSlug}/checkout${tableId ? `?table=${tableId}` : ''}`}
               className="w-full"
             >
               <Button className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold">
