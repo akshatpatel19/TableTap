@@ -339,6 +339,8 @@ export const deleteMenuItem = async (menuItemId: string) => {
 };
 
 // Order operations
+import { runTransaction } from 'firebase/firestore';
+
 export const createOrder = async (orderData: Omit<Order, 'id' | 'createdAt' | 'updatedAt'>) => {
   const orderRef = doc(collection(db, 'orders'));
   const order: Order = {
@@ -347,13 +349,27 @@ export const createOrder = async (orderData: Omit<Order, 'id' | 'createdAt' | 'u
     createdAt: Date.now(),
     updatedAt: Date.now(),
   };
-  await setDoc(orderRef, order);
 
-  // Increment active and total counters (Issue 10)
   const cafeRef = doc(db, 'cafes', orderData.cafeId);
-  await updateDoc(cafeRef, {
-    activeOrdersCount: increment(1),
-    totalOrdersCount: increment(1)
+
+  await runTransaction(db, async (transaction) => {
+    // Read the cafe doc first (required by transaction rules)
+    const cafeDoc = await transaction.get(cafeRef);
+    if (!cafeDoc.exists()) {
+      throw new Error('Cafe does not exist!');
+    }
+
+    // Write the order doc
+    transaction.set(orderRef, order);
+
+    // Increment counters
+    const currentActive = cafeDoc.data().activeOrdersCount || 0;
+    const currentTotal = cafeDoc.data().totalOrdersCount || 0;
+
+    transaction.update(cafeRef, {
+      activeOrdersCount: currentActive + 1,
+      totalOrdersCount: currentTotal + 1,
+    });
   });
 
   return order;
@@ -389,21 +405,39 @@ export const getCafeOrders = async (cafeId: string, status?: string) => {
 export const updateOrder = async (orderId: string, updates: Partial<Order>) => {
   const orderRef = doc(db, 'orders', orderId);
 
-  // If status is transitioning to a finalized state, decrement active orders count (Issue 10)
   if (updates.status && ['served', 'cancelled'].includes(updates.status)) {
-    const docSnap = await getDoc(orderRef);
-    if (docSnap.exists()) {
-      const orderData = docSnap.data() as Order;
+    await runTransaction(db, async (transaction) => {
+      const orderDoc = await transaction.get(orderRef);
+      if (!orderDoc.exists()) return;
+
+      const orderData = orderDoc.data() as Order;
+      let cafeDoc = null;
+      let cafeRef = null;
+
+      // If it wasn't already served or cancelled, we will need to decrement the count
+      // Therefore we must read the cafe document BEFORE any writes.
       if (!['served', 'cancelled'].includes(orderData.status)) {
-        const cafeRef = doc(db, 'cafes', orderData.cafeId);
-        await updateDoc(cafeRef, {
-          activeOrdersCount: increment(-1)
+        cafeRef = doc(db, 'cafes', orderData.cafeId);
+        cafeDoc = await transaction.get(cafeRef);
+      }
+
+      // WRITES SECTION
+      // Update the order itself
+      transaction.update(orderRef, { ...updates, updatedAt: Date.now() });
+
+      // Apply the decremented count if applicable
+      if (cafeDoc && cafeDoc.exists() && cafeRef) {
+        const currentActive = cafeDoc.data().activeOrdersCount || 0;
+        // Ensure we don't go below 0
+        transaction.update(cafeRef, {
+          activeOrdersCount: Math.max(0, currentActive - 1)
         });
       }
-    }
+    });
+  } else {
+    // Standard update without counter changes
+    await updateDoc(orderRef, { ...updates, updatedAt: Date.now() });
   }
-
-  await updateDoc(orderRef, { ...updates, updatedAt: Date.now() });
 };
 
 // Subscription operations
@@ -525,33 +559,28 @@ export const recordSetupFeePayment = async (cafeId: string) => {
   return setupPayment;
 };
 
-export const verifySetupFeePayment = async (cafeId: string, adminId: string, approved: boolean) => {
-  const cafe = await getCafe(cafeId);
-  if (!cafe) throw new Error('Cafe not found');
-
-  const verificationTime = Date.now(); // Capture verification time
-
-  // Find the pending setup payment
-  const q = query(collection(db, 'subscription_payments'), where('cafeId', '==', cafeId), where('type', '==', 'setup'), where('status', '==', 'pending'));
-  const querySnapshot = await getDocs(q);
-
-  if (!querySnapshot.empty) {
-    const paymentDoc = querySnapshot.docs[0];
-    await updateDoc(paymentDoc.ref, {
-      status: approved ? 'paid' : 'rejected',
-      verifiedBy: adminId,
-      verifiedAt: verificationTime,
-    });
-  }
-
-  // Payment dates are set at account creation and should not change during verification
-  // Only update status and verification timestamp
-  await updateCafe(cafeId, {
-    setupFeeStatus: approved ? 'paid' : 'rejected',
-    setupFeeVerifiedAt: approved ? verificationTime : undefined,
+export const verifySetupFeePayment = async (cafeId: string, adminId: string, approved: boolean, adminPassword?: string) => {
+  // Call the new secure API route
+  const response = await fetch('/api/admin/payments/verify-setup', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      cafeId,
+      adminId,
+      approved,
+      adminPassword,
+    }),
   });
 
-  return approved;
+  if (!response.ok) {
+    console.error('Failed to process verification:', await response.text());
+    return false;
+  }
+
+  const result = await response.json();
+  return result.approved;
 };
 
 export const recordMonthlyPayment = async (cafeId: string) => {
@@ -579,45 +608,29 @@ export const recordMonthlyPayment = async (cafeId: string) => {
   return monthlyPayment;
 };
 
-export const verifyMonthlyPayment = async (cafeId: string, paymentId: string, adminId: string, approved: boolean) => {
-  const cafe = await getCafe(cafeId);
-  if (!cafe) throw new Error('Cafe not found');
+export const verifyMonthlyPayment = async (cafeId: string, paymentId: string, adminId: string, approved: boolean, adminPassword?: string) => {
+  // Call the new secure API route
+  const response = await fetch('/api/admin/payments/verify-monthly', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      cafeId,
+      paymentId,
+      adminId,
+      approved,
+      adminPassword,
+    }),
+  });
 
-  const verificationTime = Date.now(); // Capture verification time
-
-  // Find the specific monthly payment
-  const q = query(collection(db, 'subscription_payments'), where('cafeId', '==', cafeId), where('id', '==', paymentId));
-  const querySnapshot = await getDocs(q);
-
-  if (!querySnapshot.empty) {
-    const paymentDoc = querySnapshot.docs[0];
-    await updateDoc(paymentDoc.ref, {
-      status: approved ? 'paid' : 'rejected',
-      verifiedBy: adminId,
-      verifiedAt: verificationTime,
-    });
+  if (!response.ok) {
+    console.error('Failed to process verification:', await response.text());
+    return false;
   }
 
-  // Payment dates are set at account creation and rolled forward each payment cycle
-  // When payment is approved, advance the next payment date by 30 days
-  const nextMonthlyDue = approved
-    ? (cafe.nextMonthlyPaymentDueDate || Date.now()) + 30 * 24 * 60 * 60 * 1000
-    : cafe.nextMonthlyPaymentDueDate;
-
-  const updateData: Partial<Cafe> = {
-    nextMonthlyPaymentDueDate: nextMonthlyDue,
-    upcomingPaymentEmailSentAt: null,
-    overduePaymentEmailSentAt: null,
-    suspensionWarningEmailSentAt: null,
-  };
-
-  if (approved) {
-    updateData.lastMonthlyPaymentDate = verificationTime;
-  }
-
-  await updateCafe(cafeId, updateData);
-
-  return approved;
+  const result = await response.json();
+  return result.approved;
 };
 
 export const getPendingPayments = async (cafeId: string) => {
@@ -790,34 +803,31 @@ export const verifyTableUpgradePayment = async (
   cafeId: string,
   paymentId: string,
   adminId: string,
-  approved: boolean
+  approved: boolean,
+  adminPassword?: string
 ) => {
-  const cafe = await getCafe(cafeId);
-  if (!cafe) throw new Error('Cafe not found');
-
-  const q = query(collection(db, 'table_upgrade_payments'), where('cafeId', '==', cafeId), where('id', '==', paymentId));
-  const querySnapshot = await getDocs(q);
-
-  if (querySnapshot.empty) throw new Error('Payment not found');
-
-  const paymentDoc = querySnapshot.docs[0];
-  const upgradePayment = paymentDoc.data() as TableUpgradePayment;
-  const verificationTime = Date.now();
-
-  await updateDoc(paymentDoc.ref, {
-    status: approved ? 'paid' : 'rejected',
-    verifiedBy: adminId,
-    verifiedAt: verificationTime,
+  // Call the new secure API route
+  const response = await fetch('/api/admin/payments/verify-upgrade', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      cafeId,
+      paymentId,
+      adminId,
+      approved,
+      adminPassword,
+    }),
   });
 
-  // If approved, update the cafe's table count
-  if (approved) {
-    await updateCafe(cafeId, {
-      tables: upgradePayment.newTableCount,
-    });
+  if (!response.ok) {
+    console.error('Failed to process verification:', await response.text());
+    return false;
   }
 
-  return approved;
+  const result = await response.json();
+  return result.approved;
 };
 
 // Get table upgrade payments for a cafe
@@ -923,57 +933,23 @@ export function subscribeToSystemPendingUpgradePayments(callback: (payments: Tab
     callback(snapshot.docs.map(doc => doc.data() as TableUpgradePayment));
   });
 }
-// Enforce automatic suspensions for cafes overdue by more than 30 days
-export const enforceOverdueSuspensions = async () => {
+export const enforceOverdueSuspensions = async (adminPassword?: string) => {
   try {
-    // Only query active cafes to avoid full collection scans (Issue 8)
-    const activeCafesQuery = query(collection(db, 'cafes'), where('isActive', '==', true));
-    const querySnapshot = await getDocs(activeCafesQuery);
-    const cafes = querySnapshot.docs.map(doc => doc.data() as Cafe);
+    const response = await fetch('/api/admin/enforce-suspensions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ adminPassword }),
+    });
 
-    const now = Date.now();
-    const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
-    const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
-
-    for (const cafe of cafes) {
-      if (!cafe.isActive || cafe.setupFeeStatus !== 'paid') continue;
-
-      const dueDate = cafe.nextMonthlyPaymentDueDate;
-      if (!dueDate) continue;
-
-      // 1. Upcoming Warning (3 days before due)
-      if (now >= dueDate - THREE_DAYS_MS && now < dueDate && !cafe.upcomingPaymentEmailSentAt) {
-        await fetch(`/api/admin/send-system-email`, {
-          method: 'POST',
-          body: JSON.stringify({ cafeName: cafe.name, cafeEmail: cafe.email, notificationType: 'upcoming' })
-        }).catch(err => console.error(err));
-        await updateCafe(cafe.id, { upcomingPaymentEmailSentAt: now });
-      }
-
-      // 2. Overdue Warning (Day 0)
-      if (now >= dueDate && now < dueDate + THIRTY_DAYS_MS - THREE_DAYS_MS && !cafe.overduePaymentEmailSentAt) {
-        await fetch(`/api/admin/send-system-email`, {
-          method: 'POST',
-          body: JSON.stringify({ cafeName: cafe.name, cafeEmail: cafe.email, notificationType: 'overdue' })
-        }).catch(err => console.error(err));
-        await updateCafe(cafe.id, { overduePaymentEmailSentAt: now });
-      }
-
-      // 3. Final Suspension Warning (Day 27 overdue, 3 days before block)
-      if (now >= dueDate + THIRTY_DAYS_MS - THREE_DAYS_MS && now < dueDate + THIRTY_DAYS_MS && !cafe.suspensionWarningEmailSentAt) {
-        await fetch(`/api/admin/send-system-email`, {
-          method: 'POST',
-          body: JSON.stringify({ cafeName: cafe.name, cafeEmail: cafe.email, notificationType: 'suspension_warning' })
-        }).catch(err => console.error(err));
-        await updateCafe(cafe.id, { suspensionWarningEmailSentAt: now });
-      }
-
-      // 4. Execution Block
-      if (now >= dueDate + THIRTY_DAYS_MS) {
-        await updateCafe(cafe.id, { isActive: false });
-        console.log(`[Overdue Enforcement] Auto-suspended cafe ${cafe.id} for 30+ days overdue payment.`);
-      }
+    if (!response.ok) {
+      console.error('Failed to run overdue enforcement:', await response.text());
+      return;
     }
+
+    const result = await response.json();
+    console.log(`[Overdue Enforcement] Processed ${result.processed} cafes, suspended ${result.suspended}.`);
   } catch (error) {
     console.error('[v0] Error running overdue enforcement:', error);
   }

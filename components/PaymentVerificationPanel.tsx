@@ -54,7 +54,8 @@ export default function PaymentVerificationPanel({ cafeId, onVerificationComplet
 
     try {
       const adminId = localStorage.getItem('admin_token') || 'admin';
-      await verifySetupFeePayment(cafeId, adminId, approve);
+      const adminPassword = process.env.NEXT_PUBLIC_ADMIN_PASSWORD;
+      await verifySetupFeePayment(cafeId, adminId, approve, adminPassword);
 
       const updatedCafe = await getCafe(cafeId);
       setCafe(updatedCafe);
@@ -76,7 +77,8 @@ export default function PaymentVerificationPanel({ cafeId, onVerificationComplet
 
     try {
       const adminId = localStorage.getItem('admin_token') || 'admin';
-      await verifyMonthlyPayment(cafeId, paymentId, adminId, approve);
+      const adminPassword = process.env.NEXT_PUBLIC_ADMIN_PASSWORD;
+      await verifyMonthlyPayment(cafeId, paymentId, adminId, approve, adminPassword);
 
       const updatedCafe = await getCafe(cafeId);
       setCafe(updatedCafe);
@@ -98,7 +100,8 @@ export default function PaymentVerificationPanel({ cafeId, onVerificationComplet
 
     try {
       const adminId = localStorage.getItem('admin_token') || 'admin';
-      await verifyTableUpgradePayment(cafeId, paymentId, adminId, approve);
+      const adminPassword = process.env.NEXT_PUBLIC_ADMIN_PASSWORD;
+      await verifyTableUpgradePayment(cafeId, paymentId, adminId, approve, adminPassword);
 
       const updatedCafe = await getCafe(cafeId);
       setCafe(updatedCafe);

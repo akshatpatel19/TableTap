@@ -25,3 +25,5 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+tabletap-fccd1-firebase-adminsdk-fbsvc-5b2f0ff60f.json

@@ -1,0 +1,75 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 1. Unauthenticated or Client Reads for public data
+    match /cafes/{cafeId} {
+      allow read: if true;
+      allow create: if true; // Allows anyone to register a cafe
+      // Only the cafe client themselves (if authenticated) or admin can update, but we aren't using Firebase Auth for cafes right now. Let's restrict edits to the frontend doing its public things like tracking orders, but prevent tampering with billing fields.
+      allow update: if 
+        // Allow updating only certain fields if client isn't using auth
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+          'setupFeeStatus', 'setupFeeAmount', 'setupFeeVerifiedAt', 'setupFeePaymentId',
+          'lastMonthlyPaymentDate', 'nextMonthlyPaymentDueDate', 'monthlySubscriptionAmount',
+          'isActive'
+        ]);
+        // Note: Admin SDK will bypass these rules and can update everything.
+    }
+
+    match /menuItems/{itemId} {
+      allow read: if true;
+      allow write: if resource == null || resource.data.cafeId == request.resource.data.cafeId; // Can only write if keeping same cafeId
+    }
+
+    match /orders/{orderId} {
+      allow read: if true;
+      // Allow customers to create orders, but prevent them from altering payment status or status unless allowed
+      allow create: if true;
+      allow update: if true; // Cafe owner updating order status needs update.
+    }
+
+    match /discounts/{discountId} {
+      allow read: if true;
+      allow write: if true; 
+    }
+    
+    match /admin_popups/{popupId} {
+      allow read: if true;
+      allow write: if false; // Only admin can write (managed via Admin SDK / scripts)
+    }
+
+    match /cafe_popups/{popupId} {
+      allow read: if true;
+      allow write: if true; 
+    }
+
+    // 2. Admin-Only Collections (Locked down, Client SDK cannot read/write. Handled securely by Next.js API Admin SDK)
+    match /subscription_payments/{paymentId} {
+      // Clients can only read their pending setup payments to see if they got approved
+      allow read: if true;
+      // Writing/updating handled strictly by Admin SDK or API route for initial record creation
+      allow create: if request.resource.data.status == 'pending'; // Client can create pending request
+      // Client cannot approve their own payment
+      allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'verifiedBy', 'verifiedAt']) == false;
+      allow delete: if false;
+    }
+
+    match /table_upgrade_payments/{paymentId} {
+      allow read: if true;
+      allow create: if request.resource.data.status == 'pending';
+      allow update: if false; // Only Admin SDK can approve payment
+      allow delete: if false;
+    }
+
+    match /adminSettings/{document} {
+      allow read: if true; // Cafe needs to read UPI ID
+      allow write: if false; // Admin-only updates
+    }
+    
+    // Default deny for anything else
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

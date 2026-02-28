@@ -122,7 +122,7 @@ export default function CheckoutPage() {
           // Calculate base price and add-ons total
           const addOnsTotal = item.selectedAddOns?.reduce((sum, addon) => sum + addon.price, 0) || 0;
           const basePrice = item.price - addOnsTotal;
-          
+
           const itemData: any = {
             menuItemId: item.menuItemId,
             name: item.name,
@@ -130,13 +130,13 @@ export default function CheckoutPage() {
             basePrice: basePrice,
             price: item.price,
           };
-          
+
           // Only include addOns and addOnsTotal if they exist
           if (item.selectedAddOns && item.selectedAddOns.length > 0) {
             itemData.addOns = item.selectedAddOns;
             itemData.addOnsTotal = addOnsTotal;
           }
-          
+
           return itemData;
         }),
         totalAmount,
@@ -146,7 +146,22 @@ export default function CheckoutPage() {
         ...(notes && { notes }),
       };
 
-      const order = await createOrder(orderData);
+      const response = await fetch('/api/orders/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(orderData),
+      });
+
+      if (!response.ok) {
+        if (response.status === 429) {
+          throw new Error('Rate limit exceeded. Please wait a minute before trying again.');
+        }
+        throw new Error('Failed to create order on the server');
+      }
+
+      const { order } = await response.json();
 
       // Trigger order confirmation email (don't let email failure block the user)
       try {
@@ -204,7 +219,7 @@ export default function CheckoutPage() {
               {cart.map((item) => {
                 const addOnsTotal = item.selectedAddOns?.reduce((sum, addon) => sum + addon.price, 0) || 0;
                 const basePrice = item.price - addOnsTotal;
-                
+
                 return (
                   <div key={`${item.menuItemId}-${item.selectedAddOns?.map(a => a.id).join('-') || 'none'}`} className="flex justify-between">
                     <div className="flex-1">

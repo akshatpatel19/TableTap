@@ -86,12 +86,14 @@ export default function AdminPaymentsDashboard() {
 
     const handleVerification = async (paymentId: string, cafeId: string, paymentType: 'setup' | 'monthly' | 'upgrade', approved: boolean) => {
         try {
+            const adminPassword = process.env.NEXT_PUBLIC_ADMIN_PASSWORD;
+
             if (paymentType === 'setup') {
-                await verifySetupFeePayment(cafeId, adminId, approved);
+                await verifySetupFeePayment(cafeId, adminId, approved, adminPassword);
             } else if (paymentType === 'upgrade') {
-                await verifyTableUpgradePayment(cafeId, paymentId, adminId, approved);
+                await verifyTableUpgradePayment(cafeId, paymentId, adminId, approved, adminPassword);
             } else {
-                await verifyMonthlyPayment(cafeId, paymentId, adminId, approved);
+                await verifyMonthlyPayment(cafeId, paymentId, adminId, approved, adminPassword);
             }
 
             // Remove from UI instantly (for snappy UX, listeners will catch up)
