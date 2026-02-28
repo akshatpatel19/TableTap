@@ -46,7 +46,8 @@ export default function CafeAnalyticsPage() {
                             totalRevenue += order.totalAmount;
                             totalCompletedOrders++;
 
-                            const month = new Date(order.createdAt).toISOString().slice(0, 7); // YYYY-MM
+                            const d = new Date(order.createdAt);
+                            const month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; // YYYY-MM
                             ordersByMonth[month] = (ordersByMonth[month] || 0) + order.totalAmount;
                         }
                     });

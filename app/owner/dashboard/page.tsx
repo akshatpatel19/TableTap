@@ -24,7 +24,7 @@ export default function OwnerDashboard() {
   const [loading, setLoading] = useState(true);
   const [showPlans, setShowPlans] = useState(false);
   const [processingPayment, setProcessingPayment] = useState(false);
-  const [selectedMonth, setSelectedMonth] = useState<string>(new Date().toISOString().slice(0, 7));
+  const [selectedMonth, setSelectedMonth] = useState<string>(`${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`);
   const [showSetupFeeModal, setShowSetupFeeModal] = useState(false);
   const [showMonthlyModal, setShowMonthlyModal] = useState(false);
   const [showPaymentReminder, setShowPaymentReminder] = useState(false);

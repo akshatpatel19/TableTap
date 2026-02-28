@@ -6,7 +6,7 @@ import { getCafeBySlug, getMenuItems, Cafe, MenuItem, getCafeDiscounts, Discount
 import { MenuCard } from '@/components/MenuCard';
 import { OrderCart } from '@/components/OrderCart';
 import { FloatingOrderCart } from '@/components/FloatingOrderCart';
-import { Loader2, ShieldAlert } from 'lucide-react';
+import { Loader2, ShieldAlert, Search } from 'lucide-react';
 
 export default function MenuPage() {
   const params = useParams();
@@ -16,6 +16,7 @@ export default function MenuPage() {
   const [discounts, setDiscounts] = useState<Discount[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [showVegOnly, setShowVegOnly] = useState<boolean>(false);
+  const [searchQuery, setSearchQuery] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [maintenance, setMaintenance] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -126,6 +127,14 @@ export default function MenuPage() {
     filteredItems = filteredItems.filter((i) => i.foodType === 'vegetarian' || !i.foodType);
   }
 
+  if (searchQuery.trim() !== '') {
+    const query = searchQuery.toLowerCase();
+    filteredItems = filteredItems.filter((i) =>
+      i.name.toLowerCase().includes(query) ||
+      (i.description && i.description.toLowerCase().includes(query))
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -145,6 +154,20 @@ export default function MenuPage() {
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
           {/* Menu Items */}
           <div className="lg:col-span-3">
+            {/* Search Bar */}
+            <div className="mb-6 relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Search className="h-5 w-5 text-muted-foreground" />
+              </div>
+              <input
+                type="text"
+                className="block w-full pl-10 pr-3 py-3 border border-border rounded-lg bg-card text-foreground shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-shadow placeholder:text-muted-foreground"
+                placeholder="Search menu items..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+
             {/* Dietary Preference Filter */}
             <div className="mb-6 flex items-center justify-between bg-card p-4 rounded-lg border shadow-sm">
               <div>

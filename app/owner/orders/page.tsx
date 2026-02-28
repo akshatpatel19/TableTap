@@ -23,7 +23,9 @@ export default function OrdersPage() {
 
     // Filter State
     const [filterType, setFilterType] = useState<FilterType>('month');
-    const [selectedMonth, setSelectedMonth] = useState<string>(new Date().toISOString().slice(0, 7));
+    // Helper for local YYYY-MM
+    const getLocalMonthString = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+    const [selectedMonth, setSelectedMonth] = useState<string>(getLocalMonthString(new Date()));
     const [selectedYear, setSelectedYear] = useState<string>(new Date().getFullYear().toString());
     const [startDate, setStartDate] = useState<string>('');
     const [endDate, setEndDate] = useState<string>('');
@@ -65,7 +67,7 @@ export default function OrdersPage() {
             const orderDate = new Date(order.createdAt);
 
             if (filterType === 'month') {
-                const orderMonth = orderDate.toISOString().slice(0, 7);
+                const orderMonth = getLocalMonthString(orderDate);
                 return orderMonth === selectedMonth;
             } else if (filterType === 'year') {
                 return orderDate.getFullYear().toString() === selectedYear;

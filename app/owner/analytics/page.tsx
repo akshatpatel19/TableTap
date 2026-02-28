@@ -86,22 +86,35 @@ export default function AnalyticsPage() {
 
   const getDateFilter = (range: string, useCustom: boolean, startDate: string, endDate: string) => {
     if (useCustom && startDate && endDate) {
-      return {
-        start: new Date(startDate).getTime(),
-        end: new Date(endDate).getTime() + 24 * 60 * 60 * 1000, // Include entire end date
-      };
+      const [sYear, sMonth, sDay] = startDate.split('-').map(Number);
+      const [eYear, eMonth, eDay] = endDate.split('-').map(Number);
+      if (!isNaN(sYear) && !isNaN(eYear)) {
+        return {
+          start: new Date(sYear, sMonth - 1, sDay).getTime(),
+          end: new Date(eYear, eMonth - 1, eDay, 23, 59, 59, 999).getTime(),
+        };
+      }
     }
 
-    const now = Date.now();
-    const dateMap = {
-      'today': now - 24 * 60 * 60 * 1000,
-      'week': now - 7 * 24 * 60 * 60 * 1000,
-      'month': now - 30 * 24 * 60 * 60 * 1000,
-      'quarter': now - 90 * 24 * 60 * 60 * 1000,
-      'all': 0,
-    };
+    const current = Date.now();
+    const d = new Date();
+    // Start of today in local time
+    const startOfToday = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
 
-    return { start: dateMap[range as keyof typeof dateMap] || 0, end: now };
+    let start = 0;
+    if (range === 'today') {
+      start = startOfToday;
+    } else if (range === 'week') {
+      start = startOfToday - 6 * 24 * 60 * 60 * 1000;
+    } else if (range === 'month') {
+      // Start of current month
+      start = new Date(d.getFullYear(), d.getMonth(), 1).getTime();
+    } else if (range === 'quarter') {
+      // Start of current quarter
+      start = new Date(d.getFullYear(), Math.floor(d.getMonth() / 3) * 3, 1).getTime();
+    }
+
+    return { start, end: current };
   };
 
   const calculateAnalytics = (
@@ -170,9 +183,12 @@ export default function AnalyticsPage() {
     // Daily revenue
     const dailyMap = new Map<string, { amount: number; orders: number }>();
     filteredOrders.forEach(order => {
-      const date = new Date(order.createdAt).toLocaleDateString();
-      const existing = dailyMap.get(date) || { amount: 0, orders: 0 };
-      dailyMap.set(date, {
+      const orderDate = new Date(order.createdAt);
+      // Use YYYY-MM-DD for stable grouping and sorting independent of browser locale
+      const dateStr = `${orderDate.getFullYear()}-${String(orderDate.getMonth() + 1).padStart(2, '0')}-${String(orderDate.getDate()).padStart(2, '0')}`;
+
+      const existing = dailyMap.get(dateStr) || { amount: 0, orders: 0 };
+      dailyMap.set(dateStr, {
         amount: existing.amount + (order.paymentStatus === 'paid' ? order.totalAmount : 0),
         orders: existing.orders + (order.paymentStatus === 'paid' ? 1 : 0),
       });
@@ -180,7 +196,7 @@ export default function AnalyticsPage() {
 
     const dailyRevenue = Array.from(dailyMap.entries())
       .map(([date, data]) => ({ date, ...data }))
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      .sort((a, b) => a.date.localeCompare(b.date));
 
     // Hourly orders with revenue and AVG
     const hourlyMap = new Map<string, { count: number; revenue: number; totalAmount: number }>();
