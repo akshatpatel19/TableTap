@@ -129,8 +129,8 @@ export default function MenuPage() {
 
   if (searchQuery.trim() !== '') {
     const query = searchQuery.toLowerCase();
-    filteredItems = filteredItems.filter((i) =>
-      i.name.toLowerCase().includes(query) ||
+    filteredItems = filteredItems.filter((i) => 
+      i.name.toLowerCase().includes(query) || 
       (i.description && i.description.toLowerCase().includes(query))
     );
   }
