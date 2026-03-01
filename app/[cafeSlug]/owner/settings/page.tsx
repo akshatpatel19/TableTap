@@ -32,6 +32,10 @@ export default function SettingsPage() {
   const [downgradeInputValue, setDowngradeInputValue] = useState('');
   const [downgradingMessage, setDowngradingMessage] = useState('');
 
+  const [staffPassword, setStaffPassword] = useState('');
+  const [isSettingPassword, setIsSettingPassword] = useState(false);
+  const [passwordMessage, setPasswordMessage] = useState('');
+
   const cafeSlug = params.cafeSlug as string;
 
   useEffect(() => {
@@ -116,6 +120,43 @@ export default function SettingsPage() {
     navigator.clipboard.writeText(menuUrl);
     setCopiedUrl(true);
     setTimeout(() => setCopiedUrl(false), 2000);
+  };
+
+  const handleSetStaffPassword = async () => {
+    if (!cafe || !staffPassword) return;
+    setIsSettingPassword(true);
+    setPasswordMessage('');
+
+    try {
+      const user = auth.currentUser;
+      if (!user) throw new Error('Not authenticated');
+
+      const token = await user.getIdToken();
+      const response = await fetch('/api/owner/staff-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          cafeId: cafe.id,
+          staffPassword
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update password');
+      }
+
+      setPasswordMessage('Staff password updated successfully!');
+      setStaffPassword('');
+      setTimeout(() => setPasswordMessage(''), 3000);
+    } catch (error) {
+      console.error('[v0] Error setting staff password:', error);
+      alert('Failed to update staff password. Please try again.');
+    } finally {
+      setIsSettingPassword(false);
+    }
   };
 
   const handleUpgradeTableClick = () => {
@@ -227,6 +268,10 @@ export default function SettingsPage() {
           {!editMode ? (
             <div className="space-y-4">
               <div>
+                <p className="text-sm text-muted-foreground mb-1">Cafe Code (For Staff Login)</p>
+                <p className="font-medium text-foreground text-lg tracking-wider bg-muted px-2 py-1 rounded inline-block">{cafe.cafeCode || 'Not generated'}</p>
+              </div>
+              <div>
                 <p className="text-sm text-muted-foreground mb-1">Cafe Name</p>
                 <p className="font-medium text-foreground">{cafe.name}</p>
               </div>
@@ -249,6 +294,13 @@ export default function SettingsPage() {
             </div>
           ) : (
             <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Cafe Code</label>
+                <div className="px-3 py-2 border border-input rounded-lg bg-muted text-foreground font-mono">
+                  {cafe.cafeCode || 'Not generated'}
+                </div>
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1">Cafe Name</label>
                 <input
@@ -326,6 +378,33 @@ export default function SettingsPage() {
               <Copy className="h-4 w-4" />
               {copiedUrl ? 'Copied!' : 'Copy'}
             </Button>
+          </div>
+        </Card>
+
+        {/* Manage Staff Access */}
+        <Card className="p-6">
+          <h3 className="text-lg font-semibold text-foreground mb-4">Manage Staff Access</h3>
+          <p className="text-sm text-muted-foreground mb-4">Set a password for your staff to log in using your Cafe Code: <strong className="font-mono bg-muted px-1 rounded">{cafe.cafeCode}</strong></p>
+          <div className="space-y-4 max-w-sm">
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Staff Password</label>
+              <input
+                type="password"
+                value={staffPassword}
+                onChange={(e) => setStaffPassword(e.target.value)}
+                placeholder="Enter new staff password"
+                className="w-full px-3 py-2 border border-input rounded-lg bg-background text-foreground"
+              />
+            </div>
+            <Button
+              onClick={handleSetStaffPassword}
+              disabled={isSettingPassword || !staffPassword}
+              className="w-full"
+            >
+              {isSettingPassword ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+              Update Staff Password
+            </Button>
+            {passwordMessage && <p className="text-sm text-green-600 mt-2 font-medium">{passwordMessage}</p>}
           </div>
         </Card>
 

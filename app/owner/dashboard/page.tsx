@@ -589,7 +589,7 @@ export default function OwnerDashboard() {
 
         {/* Quick Actions */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
-          <Link href={`/${cafe.slug}/menu`} className="block">
+          <Link href={`/${cafe.slug}/menu?owner=true`} className="block">
             <Card className="p-6 cursor-pointer hover:shadow-lg transition-shadow h-full">
               <QrCode className="h-8 w-8 text-primary mb-3" />
               <h3 className="font-semibold text-foreground mb-1">Customer Menu</h3>
@@ -597,13 +597,31 @@ export default function OwnerDashboard() {
             </Card>
           </Link>
 
-          <Link href={`/${cafe.slug}/staff/dashboard`} className="block">
+          <div onClick={async () => {
+            try {
+              if (!cafe) return;
+              const idToken = await auth.currentUser?.getIdToken();
+              if (!idToken) return;
+              const res = await fetch('/api/owner/staff-session', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${idToken}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ cafeId: cafe.id })
+              });
+              if (res.ok) {
+                router.push(`/${cafe.slug}/staff/dashboard`);
+              } else {
+                alert('Failed to authorize staff dashboard');
+              }
+            } catch (e) {
+              console.error(e);
+            }
+          }} className="block">
             <Card className="p-6 cursor-pointer hover:shadow-lg transition-shadow h-full">
               <Users className="h-8 w-8 text-primary mb-3" />
               <h3 className="font-semibold text-foreground mb-1">Staff Dashboard</h3>
-              <p className="text-sm text-muted-foreground">Manage orders</p>
+              <p className="text-sm text-muted-foreground">Manage orders directly</p>
             </Card>
-          </Link>
+          </div>
 
           <Link href={`/${cafe.slug}/owner/menu-setup`} className="block">
             <Card className="p-6 cursor-pointer hover:shadow-lg transition-shadow h-full">

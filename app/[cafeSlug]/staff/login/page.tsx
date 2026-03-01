@@ -2,9 +2,11 @@
 
 import React from "react"
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { getCafeBySlug } from '@/lib/db';
+import { auth } from '@/lib/firebase';
+import { signOut } from 'firebase/auth';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Loader2 } from 'lucide-react';
@@ -17,6 +19,18 @@ export default function StaffLoginPage() {
   const [error, setError] = useState<string | null>(null);
 
   const cafeSlug = params.cafeSlug as string;
+
+  useEffect(() => {
+    const clearAdminSession = async () => {
+      try {
+        localStorage.removeItem('current_cafe_id');
+        await signOut(auth);
+      } catch (err) {
+        console.error('[v0] Error clearing session:', err);
+      }
+    };
+    clearAdminSession();
+  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();

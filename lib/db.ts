@@ -30,6 +30,7 @@ export interface Cafe {
   upiId?: string; // UPI ID for payments (e.g., user@upi)
   upiQrCode?: string; // Base64 encoded QR code image
   gstNumber?: string; // GST number for billing
+  cafeCode?: string; // Unique 6-character code for staff login
   categories?: string[]; // Custom categories created by cafe owner
   // Subscription payment tracking
   setupFeeStatus: 'pending' | 'paid' | 'rejected'; // Setup fee payment status
@@ -214,15 +215,34 @@ export interface CafePopup {
 }
 
 // Cafe operations
+export const getUniqueCafeCode = async () => {
+  let isUnique = false;
+  let code = '';
+  while (!isUnique) {
+    const letter = String.fromCharCode(65 + Math.floor(Math.random() * 26)); // A-Z
+    const numbers = Math.floor(10000 + Math.random() * 90000); // 5 digit number
+    code = `${letter}${numbers}`;
+    const q = query(collection(db, 'cafes'), where('cafeCode', '==', code));
+    const snapshot = await getDocs(q);
+    if (snapshot.empty) {
+      isUnique = true;
+    }
+  }
+  return code;
+};
+
 export const createCafe = async (cafeData: Omit<Cafe, 'id' | 'createdAt' | 'updatedAt'>) => {
   const cafeRef = doc(collection(db, 'cafes'));
   const creationTime = Date.now();
   // const nextPaymentDueDate = creationTime + 30 * 24 * 60 * 60 * 1000; // 30 days from creation
   const nextPaymentDueDate = creationTime; // 30 days from creation
 
+  const cafeCode = await getUniqueCafeCode();
+
   const cafe: Cafe = {
     ...cafeData,
     id: cafeRef.id,
+    cafeCode,
     setupFeeStatus: 'pending',
     setupFeeAmount: 4999,
     monthlySubscriptionAmount: (cafeData.tables || 5) * 199,

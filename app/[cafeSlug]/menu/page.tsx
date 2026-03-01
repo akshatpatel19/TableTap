@@ -6,7 +6,8 @@ import { getCafeBySlug, getMenuItems, Cafe, MenuItem, getCafeDiscounts, Discount
 import { MenuCard } from '@/components/MenuCard';
 import { OrderCart } from '@/components/OrderCart';
 import { FloatingOrderCart } from '@/components/FloatingOrderCart';
-import { Loader2, ShieldAlert, Search } from 'lucide-react';
+import { Loader2, ShieldAlert, Search, ArrowLeft } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 export default function MenuPage() {
   const params = useParams();
@@ -129,8 +130,8 @@ export default function MenuPage() {
 
   if (searchQuery.trim() !== '') {
     const query = searchQuery.toLowerCase();
-    filteredItems = filteredItems.filter((i) => 
-      i.name.toLowerCase().includes(query) || 
+    filteredItems = filteredItems.filter((i) =>
+      i.name.toLowerCase().includes(query) ||
       (i.description && i.description.toLowerCase().includes(query))
     );
   }
@@ -139,9 +140,23 @@ export default function MenuPage() {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <div className="sticky top-0 z-40 bg-card border-b shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 py-4">
-          <h1 className="text-3xl font-bold text-foreground">{cafe.name}</h1>
-          <p className="text-sm text-muted-foreground mt-1">Table {tableId}</p>
+        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-foreground">{cafe.name}</h1>
+            <p className="text-sm text-muted-foreground mt-1">Table {tableId}</p>
+          </div>
+          {searchParams.get('staff') === 'true' && (
+            <Button variant="outline" size="sm" onClick={() => window.location.href = `/${cafeSlug}/staff/dashboard`}>
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Dashboard
+            </Button>
+          )}
+          {searchParams.get('owner') === 'true' && (
+            <Button variant="outline" size="sm" onClick={() => window.location.href = `/owner/dashboard`}>
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Owner Dashboard
+            </Button>
+          )}
         </div>
       </div>
 

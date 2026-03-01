@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -19,6 +19,18 @@ export default function AdminLoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    const clearAdminSession = async () => {
+      try {
+        localStorage.removeItem('admin_token');
+        await signOut(auth);
+      } catch (err) {
+        console.error('[v0] Error clearing admin session:', err);
+      }
+    };
+    clearAdminSession();
+  }, []);
+
   const handleGoogleSignIn = async () => {
     setLoading(true);
     setError(null);
@@ -28,7 +40,7 @@ export default function AdminLoginPage() {
       provider.setCustomParameters({
         prompt: 'select_account'
       });
-      
+
       const result = await signInWithPopup(auth, provider);
       const userEmail = result.user?.email;
 
